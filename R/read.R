@@ -1,26 +1,27 @@
-#helper functions
-dnr_rename <- Vectorize(function(param) {
-  if (param == "530") return("tss")
-  else if (param == "600") return("tn")
-  else if (param == "608") return("nh3")
-  else if (param == "625") return("tkn")
-  else if (param == "631") return("no3")
-  else if (param == "665") return("tp")
-  else if (param == "671") return("po4")
-  else if (param == "681") return("doc")
-  else if (param == "99717") return("chl")
-  else return(param)
-})
-
-dnr_fix_dates <- Vectorize(function(station, date) {
-  if (station == "10040814" & date == "8/20/2019") return("8/22/2019")
-  else if (station == "10052503" & date == "8/11/2019") return("8/12/2019")
-  else if (station == "10052514" & date == "7/22/2019") return("7/25/2019")
-  else if (station == "101" & date == "2021-07-09") return("2021-07-08")
-  else return(date)
-})
-
 s1_targets <- list(
+  
+  #helper functions
+  tar_target(dnr_rename, Vectorize(function(param) {
+    if (param == "530") return("tss")
+    else if (param == "600") return("tn")
+    else if (param == "608") return("nh3")
+    else if (param == "625") return("tkn")
+    else if (param == "631") return("no3")
+    else if (param == "665") return("tp")
+    else if (param == "671") return("po4")
+    else if (param == "681") return("doc")
+    else if (param == "99717") return("chl")
+    else return(param)
+  })),
+  
+  tar_target(dnr_fix_dates, Vectorize(function(station, date) {
+    if (station == "10040814" & date == "8/20/2019") return("8/22/2019")
+    else if (station == "10052503" & date == "8/11/2019") return("8/12/2019")
+    else if (station == "10052514" & date == "7/22/2019") return("7/25/2019")
+    else if (station == "101" & date == "2021-07-09") return("2021-07-08")
+    else return(date)
+  })),
+  
   
   #raw data files
   tar_target(dnr_swims_19_file, "raw_data/wdnr/2019LSNSHABs_SWIMS.xlsx", format = "file"),
