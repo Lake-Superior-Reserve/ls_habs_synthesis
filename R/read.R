@@ -15,15 +15,18 @@ s1_targets <- list(
   })),
   
   tar_target(dnr_fix_dates, Vectorize(function(station, date) {
-    if (station == "10040814" & date == "8/20/2019") return("8/22/2019")
-    else if (station == "10052503" & date == "8/11/2019") return("8/12/2019")
-    else if (station == "10052514" & date == "7/22/2019") return("7/25/2019")
-    else if (station == "101" & date == "2021-07-09") return("2021-07-08")
+    # confirmed changes with Ellen C 9/9/24
+    if (station == "10040814" & date == "8/20/2019") return("8/22/2019") # chl is on a different day from rest of analytes, chl start and end sample dates don’t match
+    else if (station == "10052503" & date == "8/11/2019") return("8/12/2019") # chl is on a different day from rest of analytes
+    else if (station == "10052514" & date == "7/22/2019") return("7/25/2019") # chl is on a different day from rest of analytes, other analytes start and end sample dates don’t match
+    else if (station == "101" & date == "2021-07-09") return("2021-07-08") # po4 and chl are one a different day from the rest of the analytes, site 3 was usually on the first day of sampling in 2021, so I moved po4 and chl to be on the same day as the other analytes
     else return(date)
   })),
   
   
   #raw data files
+  tar_target(ls_shp_file, "ref/ls_shp/ls.shp", format = "file"),
+  
   tar_target(dnr_swims_19_file, "raw_data/wdnr/2019LSNSHABs_SWIMS.xlsx", format = "file"),
   tar_target(dnr_swims_21_file, "raw_data/wdnr/2021NSData_LDES.xlsx", format = "file"),
   tar_target(dnr_swims_22_file, "raw_data/wdnr/2022NSHAB_LDES.xlsx", format = "file"),
@@ -34,6 +37,8 @@ s1_targets <- list(
   tar_target(dnr_hydro_23_file, "raw_data/wdnr/2023LSNSHABsHydro_alldepth.csv", format = "file"),
   
   #reading functions
+  tar_target(ls_shp, read_sf(ls_shp_file)),
+  
   tar_target(dnr_swims_19, read_xlsx(dnr_swims_19_file)),
   tar_target(dnr_swims_21, read_xlsx(dnr_swims_21_file)),
   tar_target(dnr_swims_22, read_xlsx(dnr_swims_22_file)),
@@ -43,21 +48,26 @@ s1_targets <- list(
   tar_target(dnr_hydro_22, read_csv(dnr_hydro_22_file)),
   tar_target(dnr_hydro_23, read_csv(dnr_hydro_23_file)),
   
-  #pull out coordinates from 2019 dnr file since other years are missing it
-  #need to add coordinates for 10054863, 104, blooms sites on 8/1/23 and 9/21/23
+  # pull out coordinates from 2019 dnr file since other years are missing it
+  # add additional coordinates provided by Ellen C 9/9/24
   tar_target(dnr_stations, dnr_swims_19 %>% 
                group_by(StationID) %>%
-               summarise(StationLatitude = first(StationLatitude), StationLongitude = first(StationLongitude))
+               summarise(StationLatitude = first(StationLatitude), StationLongitude = first(StationLongitude)) %>% 
+               bind_rows(tibble(StationID = c("10054863", "104", "BLOOM_2023-09-21"),
+                                StationLatitude = c("46.88067000", "46.75940790", "46.723286"),
+                                StationLongitude = c("-91.06150000", "-91.61504730", "-92.064256")))
              ),
   
-  #pull out site numbers (1-15) from 2023 dnr file so that we can easily merge hydro data
+  # pull out site numbers (1-15) from 2023 dnr file so that we can easily merge hydro data
   tar_target(dnr_sites, dnr_swims_23 %>%
                filter(!is.na(`Id #`) & !str_detect(`Field #`, "DUP") & !str_detect(`Field #`, "BL") & str_detect(`Field #`, "HABS")) %>% 
                mutate(site = str_split_i(`Field #`, "-", 2),
                       site = as.numeric(site)) %>% 
                group_by(`Id #`) %>% 
                summarise(SiteID = first(site)) %>% 
-               rename(StationID = `Id #`)
+               rename(StationID = `Id #`) %>% 
+               bind_rows(tibble(StationID = c("104"), # Per Ellen C 9/9/24, 104 is very close to 103, and 103 was not sampled that round, so assuming 104 is also site 6
+                                SiteID = c(6)))
                ),
   
   #cleaning functions
@@ -95,15 +105,16 @@ s1_targets <- list(
                pivot_wider(names_from = `DNR Parameter Code`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
                arrange(StartDateTime, StationID)),
   tar_target(dnr_swims_23_clean, dnr_swims_23 %>% 
-               filter(!(str_detect(`Field #`, "BL") & !str_detect(`Field #`, "BLOOM")) & str_detect(`Field #`, "HABS")) %>% #23 has two blooms samples (keeps blooms) and 3 random trib sites (drops trib sites)
+               filter(!(str_detect(`Field #`, "BL") & !str_detect(`Field #`, "BLOOM")) & str_detect(`Field #`, "HABS")) %>% # 23 has two blooms samples (keeps blooms) and 3 random trib sites (drops trib sites)
                mutate(`DNR Parameter Code` = unname(dnr_rename(`DNR Parameter Code`)),
                       `Numeric Value` = if_else(`Result value` == "ND", 0.5 * as.numeric(LOD), `Numeric Value`),
                       `Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
                       `Collection Start Date/Time` = dnr_fix_dates(`Id #`, `Collection Start Date/Time`),
                       `Collection Start Date/Time` = ymd(`Collection Start Date/Time`, tz = "America/Chicago"),
-                      `Id #` = if_else(is.na(`Id #`), 'BLOOM', `Id #`)) %>% 
+                      `Id #` = if_else(is.na(`Id #`), str_c('BLOOM', `Collection Start Date/Time`, sep = "_"), `Id #`)) %>% 
                select(StartDateTime = `Collection Start Date/Time`, StationID = `Id #`, `DNR Parameter Code`, `Numeric Value`) %>% 
-               pivot_wider(names_from = `DNR Parameter Code`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
+               pivot_wider(names_from = `DNR Parameter Code`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>%
+               mutate(po4 = 0.0007) %>% # per Ellen C 9/9/24, po4 samples were analyzed at Pace Analytical Duluth and were all NDs. Pace has a LOD of 0.0014 for po4, so setting all po4 results to 0.5*0.0014=0.0007
                arrange(StartDateTime, StationID)),
   
   tar_target(dnr_hydro_21_clean, dnr_hydro_21 %>% 
@@ -145,8 +156,11 @@ s1_targets <- list(
   #combine dnr files
   tar_target(dnr, dnr_swims_clean %>% 
                left_join(dnr_stations, by = join_by(StationID)) %>% 
-               left_join(dnr_sites, by = join_by(StationID)) %>% 
-               left_join(dnr_hydro_surf, by = join_by(SiteID == site, StartDateTime == date)))
+               left_join(dnr_sites, by = join_by(StationID)) %>%
+               rename(date = StartDateTime, station = StationID, site = SiteID) %>% 
+               left_join(dnr_hydro_surf, by = join_by(site, date)) %>% 
+               filter(!is.na(StationLatitude)) %>% #drop once we have coordinates for 8/1/23 blooms
+               st_as_sf(coords = c("StationLongitude", "StationLatitude"), crs = st_crs(ls_shp)))
   
   
   
