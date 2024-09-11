@@ -1,7 +1,8 @@
 s2_targets <- list(
   
-  #corrplot functions
+  # variable comparison
   
+  # corrplot
   tar_target(dnr_corr_fn, function(dnr) {
     dnr_corr <- select(dnr, chl, tss, nh3, no3, tn, po4, tp, doc, temp, do, cond, ph, turb) %>% 
       st_drop_geometry()
@@ -13,6 +14,23 @@ s2_targets <- list(
   tar_target(dnr_corr, dnr_corr_fn(dnr)),
   # corrplot::corrplot(tar_read(dnr_corr)$r, type = "lower", tl.cex = .5, p.mat = tar_read(dnr_corr)$P, sig.level = 0.01, insig = 'blank', outline = T)
 
+  # random forest
+  tar_target(dnr_rf_prep, dnr %>% 
+               st_drop_geometry() %>% 
+               mutate(month = month(date)) %>% 
+               select(-c(date, station, nh3, doc, do_sat)) %>% 
+               filter(!is.na(site)) %>% 
+               mutate(site = as.factor(site),
+                      month = as.factor(month))),
+  tar_target(dnr_rf_prep_chem, select(dnr_rf_prep, -c(temp, do, cond, ph, turb)) %>% 
+               na.omit()),
+  tar_target(dnr_rf_prep_full, na.omit(dnr_rf_prep)),
+  
+  tar_target(dnr_rf_chem, randomForest(chl ~ ., data = dnr_rf_prep_chem, importance = TRUE)),
+  tar_target(dnr_rf_full, randomForest(chl ~ ., data = dnr_rf_prep_full, importance = TRUE)),
+  # randomForestExplainer::explain_forest(tar_read(dnr_rf_full))
+  
+  
   # maps
 
   #ls shapes

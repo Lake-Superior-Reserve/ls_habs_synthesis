@@ -1,7 +1,7 @@
 library(targets)
 
-read_packages <- c("tidyverse", "lubridate", "readxl", "sf")
-visual_packages <- c("corrplot", "Hmisc", "gganimate")
+read_packages <- c("tidyverse", "readxl", "sf")
+visual_packages <- c("corrplot", "Hmisc", "gganimate", "randomForest")
 
 tar_option_set(packages = c(read_packages, visual_packages))
 
