@@ -18,7 +18,7 @@ s2_targets <- list(
   tar_target(dnr_rf_prep, dnr %>% 
                st_drop_geometry() %>% 
                mutate(month = month(date)) %>% 
-               select(-c(date, station, nh3, doc, do_sat)) %>% 
+               select(-c(date, station, nh3, doc, do_sat, chl_f)) %>% 
                filter(!is.na(site)) %>% 
                mutate(site = as.factor(site),
                       month = as.factor(month))),
@@ -29,6 +29,66 @@ s2_targets <- list(
   tar_target(dnr_rf_chem, randomForest(chl ~ ., data = dnr_rf_prep_chem, importance = TRUE)),
   tar_target(dnr_rf_full, randomForest(chl ~ ., data = dnr_rf_prep_full, importance = TRUE)),
   # randomForestExplainer::explain_forest(tar_read(dnr_rf_full))
+  
+  # clustering
+  
+  # based on sites across years
+  tar_target(dnr_site_clus_prep, dnr %>% 
+               st_drop_geometry() %>%  
+               select(-c(date, station, nh3, doc, do_sat, chl_f)) %>% 
+               filter(!is.na(site)) %>% 
+               mutate(site = as.factor(site)) %>% 
+               group_by(site) %>% 
+               summarise(chl = mean(chl, na.rm = T),
+                         tss = mean(tss, na.rm = T),
+                         no3 = mean(no3, na.rm = T),
+                         tn = mean(tn, na.rm = T),
+                         po4 = mean(po4, na.rm = T),
+                         tp = mean(tp, na.rm = T),
+                         temp = mean(temp, na.rm = T),
+                         do = mean(do, na.rm = T),
+                         cond = mean(cond, na.rm = T),
+                         ph = mean(ph, na.rm = T),
+                         turb = mean(turb, na.rm = T)) %>% 
+               column_to_rownames("site") %>% 
+               scale()),
+  
+  # treating each site/year combo differently
+  tar_target(dnr_site_date_clus_prep, dnr %>% 
+               st_drop_geometry() %>%  
+               select(-c(station, nh3, doc, do_sat, chl_f)) %>% 
+               filter(!is.na(site)) %>% 
+               mutate(dateround = year(date),
+                      site_date = str_c(dateround, site, sep = "_"),
+               ) %>% 
+               group_by(site_date) %>% 
+               summarise(chl = mean(chl, na.rm = T),
+                         tss = mean(tss, na.rm = T),
+                         no3 = mean(no3, na.rm = T),
+                         tn = mean(tn, na.rm = T),
+                         po4 = mean(po4, na.rm = T),
+                         tp = mean(tp, na.rm = T),
+                         temp = mean(temp, na.rm = T),
+                         do = mean(do, na.rm = T),
+                         cond = mean(cond, na.rm = T),
+                         ph = mean(ph, na.rm = T),
+                         turb = mean(turb, na.rm = T)) %>% 
+               column_to_rownames("site_date") %>% 
+               na.omit() %>% 
+               scale()),
+  
+  tar_target(dnr_site_clus_pca, prcomp(dnr_site_clus_prep)),
+  # biplot(tar_read(dnr_site_clus_pca))
+  
+  tar_target(dnr_site_clus_kmean, kmeans(dnr_site_clus_prep, centers = 2, nstart = 25)),
+  # factoextra::fviz_cluster(tar_read(dnr_site_clus_kmean), data = tar_read(dnr_site_clus_prep))
+  
+  tar_target(dnr_site_date_clus_pca, prcomp(dnr_site_date_clus_prep)),
+  # biplot(tar_read(dnr_site_date_clus_pca))
+  
+  tar_target(dnr_site_date_clus_kmean, kmeans(dnr_site_date_clus_prep, centers = 3, nstart = 25)),
+  # factoextra::fviz_cluster(tar_read(dnr_site_date_clus_kmean), data = tar_read(dnr_site_date_clus_prep))
+  # or plotly::ggplotly(factoextra::fviz_cluster(tar_read(dnr_site_date_clus_kmean), data = tar_read(dnr_site_date_clus_prep)))
   
   
   # maps

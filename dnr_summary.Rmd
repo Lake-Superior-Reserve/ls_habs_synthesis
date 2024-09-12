@@ -1,0 +1,38 @@
+---
+title: "DNR Nearshore Sampling Data Summary"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(targets)
+library(tidyverse)
+
+
+```
+
+```{r summary, include=FALSE}
+#switch to doing box plots for key variables - facet wrap ggplot?
+
+summary(tar_read(dnr))
+```
+
+
+```{r corr, include=FALSE}
+corrplot::corrplot(tar_read(dnr_corr)$r, type = "lower", tl.cex = .5, p.mat = tar_read(dnr_corr)$P, sig.level = 0.01, insig = 'blank', outline = T)
+```
+
+#insert clustering here
+
+
+#maps of key variables -- chl, tp, tn, tss -- round date down so sampling rounds are together
+
+```{r rf, include=FALSE}
+DT::datatable(randomForestExplainer::measure_importance(tar_read(dnr_rf_chem)))
+```
+
+plot chl vs params for top x most important from rf; include linear model line
+
+
+
+

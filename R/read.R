@@ -32,6 +32,7 @@ s1_targets <- list(
   tar_target(dnr_swims_22_file, "raw_data/wdnr/2022NSHAB_LDES.xlsx", format = "file"),
   tar_target(dnr_swims_23_file, "raw_data/wdnr/2023NSHABs_SWIMS.xlsx", format = "file"),
   
+  tar_target(dnr_hydro_19_file, "raw_data/wdnr/2019_Hydro.xlsx", format = "file"),
   tar_target(dnr_hydro_21_file, "raw_data/wdnr/2021_Hydro.csv", format = "file"),
   tar_target(dnr_hydro_22_file, "raw_data/wdnr/AllDepths2022Hydro.csv", format = "file"),
   tar_target(dnr_hydro_23_file, "raw_data/wdnr/2023LSNSHABsHydro_alldepth.csv", format = "file"),
@@ -44,6 +45,7 @@ s1_targets <- list(
   tar_target(dnr_swims_22, read_xlsx(dnr_swims_22_file)),
   tar_target(dnr_swims_23, read_xlsx(dnr_swims_23_file)),
   
+  tar_target(dnr_hydro_19, read_xlsx(dnr_hydro_19_file)),
   tar_target(dnr_hydro_21, read_csv(dnr_hydro_21_file)),
   tar_target(dnr_hydro_22, read_csv(dnr_hydro_22_file)),
   tar_target(dnr_hydro_23, read_csv(dnr_hydro_23_file)),
@@ -65,10 +67,20 @@ s1_targets <- list(
                       site = as.numeric(site)) %>% 
                group_by(`Id #`) %>% 
                summarise(SiteID = first(site)) %>% 
-               rename(StationID = `Id #`) %>% 
-               bind_rows(tibble(StationID = c("104"), # Per Ellen C 9/9/24, 104 is very close to 103, and 103 was not sampled that round, so assuming 104 is also site 6
-                                SiteID = c(6)))
+               rename(StationID = `Id #`) 
                ),
+  
+  # pull out block numbers from 2019 file to join sonde data
+  tar_target(dnr_blocks, dnr_swims_19 %>% 
+               mutate(StartDateTime = str_split_i(StartDateTime, " ", 1),
+                      StartDateTime = dnr_fix_dates(StationID, StartDateTime),
+                      StartDateTime = mdy(StartDateTime, tz = "America/Chicago"),
+                      Block = str_trim(str_split_i(FieldNo, "K", 2)),
+                      Block = str_split_i(Block, "\\D", 1),
+                      Block = as.numeric(Block)) %>% 
+               group_by(StationID, StartDateTime) %>% 
+               summarise(Block = mean(Block)) %>% 
+               filter(!is.na(Block))),
   
   #cleaning functions
   
@@ -117,48 +129,65 @@ s1_targets <- list(
                mutate(po4 = 0.0007) %>% # per Ellen C 9/9/24, po4 samples were analyzed at Pace Analytical Duluth and were all NDs. Pace has a LOD of 0.0014 for po4, so setting all po4 results to 0.5*0.0014=0.0007
                arrange(StartDateTime, StationID)),
   
+  tar_target(dnr_hydro_19_clean, dnr_hydro_19 %>% 
+               mutate(`SpCond uS/cm` = if_else(is.na(`SpCond uS/cm`), 1000 * `SpCond mS/cm`, `SpCond uS/cm`),
+                      Block = as.numeric(str_split_i(Block, " ", 2)),
+                      `Date (MM/DD/YYYY)` = force_tz(`Date (MM/DD/YYYY)`, tzone = "America/Chicago")) %>%
+               left_join(dnr_blocks, by = join_by(Block, `Date (MM/DD/YYYY)` == StartDateTime)) %>%
+               left_join(dnr_sites, by = join_by(StationID)) %>% 
+               select(block = Block, station = StationID, site = SiteID, date = `Date (MM/DD/YYYY)`, depth = `Depth m`, temp = `Temp °C`, do_sat = `ODO % sat`, do = `ODO mg/L`, 
+                      cond = `SpCond uS/cm`, ph = pH, turb = `Turbidity FNU`, chl_f = `Chlorophyll µg/L`)),
   tar_target(dnr_hydro_21_clean, dnr_hydro_21 %>% 
                filter(`Depth (m)` != "above") %>% 
                mutate(`Depth (m)` = as.numeric(`Depth (m)`),
                       Date = mdy(Date)) %>% 
-               select(date = Date, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
+               left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
+               select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
                       ph = pH, turb = `Turbidity (NTU)`)),
   tar_target(dnr_hydro_22_clean, dnr_hydro_22 %>%  
                mutate(Date = mdy(Date)) %>% 
-               select(date = Date, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
+               left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
+               select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
                       ph = `pH (SU)`, turb = `Turbidity (NTU)`)),
   tar_target(dnr_hydro_23_clean, dnr_hydro_23 %>% 
                mutate(Date = mdy(Date)) %>% 
-               select(date = Date, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
+               left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
+               select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
                       ph = `pH (SU)`, turb = `Turbidity (NTU)`)),
 
   #surface files
+  tar_target(dnr_hydro_19_surf, dnr_hydro_19_clean %>% 
+               filter(depth <= 1 & !is.na(station)) %>% 
+               group_by(date, station) %>%
+               summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
+                         cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE), chl_f = mean(chl_f, na.rm = TRUE))),
   tar_target(dnr_hydro_21_surf, dnr_hydro_21_clean %>% 
                filter(depth <= 1) %>% 
-               group_by(date, site) %>%
+               group_by(date, station) %>%
                summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
                          cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE))),
   tar_target(dnr_hydro_22_surf, dnr_hydro_22_clean %>% 
                filter(depth <= 1) %>% 
-               group_by(date, site) %>%
+               group_by(date, station) %>%
                summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
                          cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE))),
   tar_target(dnr_hydro_23_surf, dnr_hydro_23_clean %>% 
                filter(depth <= 1) %>% 
-               group_by(date, site) %>%
+               group_by(date, station) %>%
                summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
                          cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE))),
   
   tar_target(dnr_swims_clean, bind_rows(dnr_swims_19_clean, dnr_swims_21_clean, dnr_swims_22_clean, dnr_swims_23_clean)),
-  tar_target(dnr_hydro_clean, bind_rows(dnr_hydro_21_clean, dnr_hydro_22_clean, dnr_hydro_23_clean)),
-  tar_target(dnr_hydro_surf, bind_rows(dnr_hydro_21_surf, dnr_hydro_22_surf, dnr_hydro_23_surf)),
+  tar_target(dnr_hydro_clean, bind_rows(dnr_hydro_19_clean, dnr_hydro_21_clean, dnr_hydro_22_clean, dnr_hydro_23_clean)),
+  tar_target(dnr_hydro_surf, bind_rows(dnr_hydro_19_surf, dnr_hydro_21_surf, dnr_hydro_22_surf, dnr_hydro_23_surf)), 
   
   #combine dnr files
   tar_target(dnr, dnr_swims_clean %>% 
                left_join(dnr_stations, by = join_by(StationID)) %>% 
-               left_join(dnr_sites, by = join_by(StationID)) %>%
+               left_join(dnr_sites, by = join_by(StationID)) %>% 
                rename(date = StartDateTime, station = StationID, site = SiteID) %>% 
-               left_join(dnr_hydro_surf, by = join_by(site, date)) %>% 
+               mutate(site = if_else(station == "104", 6, site)) %>% # Per Ellen C 9/9/24, 104 is very close to 103, and 103 was not sampled that round, so assuming 104 is also site 6
+               left_join(dnr_hydro_surf, by = join_by(station, date)) %>% 
                filter(!is.na(StationLatitude)) %>% #drop once we have coordinates for 8/1/23 blooms
                st_as_sf(coords = c("StationLongitude", "StationLatitude"), crs = st_crs(ls_shp)))
   
