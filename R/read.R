@@ -20,6 +20,7 @@ s1_targets <- list(
     else if (station == "10052503" & date == "8/11/2019") return("8/12/2019") # chl is on a different day from rest of analytes
     else if (station == "10052514" & date == "7/22/2019") return("7/25/2019") # chl is on a different day from rest of analytes, other analytes start and end sample dates don’t match
     else if (station == "101" & date == "2021-07-09") return("2021-07-08") # po4 and chl are one a different day from the rest of the analytes, site 3 was usually on the first day of sampling in 2021, so I moved po4 and chl to be on the same day as the other analytes
+    else if (is.na(station) & date == "2023-08-01") return("2023-09-05") # wrong date for bloom sample on 9/5/23, confirmed with Ellen C 9/17/24
     else return(date)
   })),
   
@@ -37,6 +38,9 @@ s1_targets <- list(
   tar_target(dnr_hydro_22_file, "raw_data/wdnr/AllDepths2022Hydro.csv", format = "file"),
   tar_target(dnr_hydro_23_file, "raw_data/wdnr/2023LSNSHABsHydro_alldepth.csv", format = "file"),
   
+  tar_target(umd_1721_file, "raw_data/umd/SouthShoreArchive.csv", format = "file"),
+  tar_target(umd_2123_file, "raw_data/umd/SouthShoreArchive2021to2023.csv", format = "file"),
+  
   #reading functions
   tar_target(ls_shp, read_sf(ls_shp_file)),
   
@@ -50,14 +54,17 @@ s1_targets <- list(
   tar_target(dnr_hydro_22, read_csv(dnr_hydro_22_file)),
   tar_target(dnr_hydro_23, read_csv(dnr_hydro_23_file)),
   
+  tar_target(umd_1721, read_csv(umd_1721_file)),
+  tar_target(umd_2123, read_csv(umd_2123_file)),
+  
   # pull out coordinates from 2019 dnr file since other years are missing it
   # add additional coordinates provided by Ellen C 9/9/24
   tar_target(dnr_stations, dnr_swims_19 %>% 
                group_by(StationID) %>%
                summarise(StationLatitude = first(StationLatitude), StationLongitude = first(StationLongitude)) %>% 
-               bind_rows(tibble(StationID = c("10054863", "104", "BLOOM_2023-09-21"),
-                                StationLatitude = c("46.88067000", "46.75940790", "46.723286"),
-                                StationLongitude = c("-91.06150000", "-91.61504730", "-92.064256")))
+               bind_rows(tibble(StationID = c("10054863", "104", "BLOOM_2023-09-05", "BLOOM_2023-09-21"),
+                                StationLatitude = c("46.88067000", "46.75940790", "46.792122", "46.723286"),
+                                StationLongitude = c("-91.06150000", "-91.61504730", "-91.392734", "-92.064256")))
              ),
   
   # pull out site numbers (1-15) from 2023 dnr file so that we can easily merge hydro data
@@ -134,7 +141,12 @@ s1_targets <- list(
                       Block = as.numeric(str_split_i(Block, " ", 2)),
                       `Date (MM/DD/YYYY)` = force_tz(`Date (MM/DD/YYYY)`, tzone = "America/Chicago")) %>%
                left_join(dnr_blocks, by = join_by(Block, `Date (MM/DD/YYYY)` == StartDateTime)) %>%
-               left_join(dnr_sites, by = join_by(StationID)) %>% 
+               mutate(StationID = if_else(is.na(StationID) & Block == 6, "103", StationID),
+                      StationID = if_else(is.na(StationID) & Block == 7, "10052505", StationID),
+                      StationID = if_else(is.na(StationID) & Block == 9, "10052509", StationID),
+                      StationID = if_else(is.na(StationID) & Block == 13, "10038057", StationID),
+                      StationID = if_else(is.na(StationID) & Block == 14, "10052512", StationID)) %>% 
+               left_join(dnr_sites, by = join_by(StationID)) %>%
                select(block = Block, station = StationID, site = SiteID, date = `Date (MM/DD/YYYY)`, depth = `Depth m`, temp = `Temp °C`, do_sat = `ODO % sat`, do = `ODO mg/L`, 
                       cond = `SpCond uS/cm`, ph = pH, turb = `Turbidity FNU`, chl_f = `Chlorophyll µg/L`)),
   tar_target(dnr_hydro_21_clean, dnr_hydro_21 %>% 
@@ -160,7 +172,7 @@ s1_targets <- list(
                filter(depth <= 1 & !is.na(station)) %>% 
                group_by(date, station) %>%
                summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
-                         cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE), chl_f = mean(chl_f, na.rm = TRUE))),
+                         cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE), chl_field = mean(chl_f, na.rm = TRUE))),
   tar_target(dnr_hydro_21_surf, dnr_hydro_21_clean %>% 
                filter(depth <= 1) %>% 
                group_by(date, station) %>%
@@ -187,11 +199,54 @@ s1_targets <- list(
                left_join(dnr_sites, by = join_by(StationID)) %>% 
                rename(date = StartDateTime, station = StationID, site = SiteID) %>% 
                mutate(site = if_else(station == "104", 6, site)) %>% # Per Ellen C 9/9/24, 104 is very close to 103, and 103 was not sampled that round, so assuming 104 is also site 6
-               left_join(dnr_hydro_surf, by = join_by(station, date)) %>% 
-               filter(!is.na(StationLatitude)) %>% #drop once we have coordinates for 8/1/23 blooms
-               st_as_sf(coords = c("StationLongitude", "StationLatitude"), crs = st_crs(ls_shp)))
+               left_join(dnr_hydro_surf, by = join_by(station, date)) %>%
+               mutate(depth = 0, source = "WDNR", type = "Lake",
+                      site = str_c("site ", site, " - ", station, sep = ""),
+                      site = if_else(is.na(site), station, site)) %>% 
+               select(-station) %>% 
+               st_as_sf(coords = c("StationLongitude", "StationLatitude"), crs = st_crs(ls_shp))),
   
+  # umd clean and combine
+  tar_target(umd_1721_clean, umd_1721 %>% 
+               mutate(Date = mdy(Date, tz = "America/Chicago")) %>% 
+               # handle ndls here
+               group_by(Date, Site) %>% 
+               summarise(latitude = mean(Latitude), longitude = mean(Longitude), depth = mean(Depth), source = first(Project), type = first(Type),
+                         doc = mean(DOC, na.rm = T), poc = mean(POC, na.rm = T), poc_filt = mean(POC2, na.rm = T), no3 = mean(NO3, na.rm = T),
+                         nh3 = mean(NH3, na.rm = T), tdn = mean(TDN, na.rm = T), pon = mean(PON, na.rm = T), pon_filt = mean(PON2, na.rm = T),
+                         po4 = mean(SRP, na.rm = T), tdp = mean(TDP, na.rm = T), pp = mean(PP, na.rm = T), tp = mean(TP, na.rm = T), srsi = mean(SRSi, na.rm = T), 
+                         chl = mean(Chl, na.rm = T), chl_filt = mean(Chl2, na.rm = T), phyco = mean(Phyco, na.rm = T), tss = mean(TSS, na.rm = T)) %>% 
+               mutate(srsi = srsi * .001 * 60.084, doc = doc * .001 * 12.011, poc = poc * .001 * 12.011, poc_filt = poc_filt * .001 * 12.011, #converting units from to umol/L to mg/L by converting to mmol/L then multiplying by molar mass
+                      no3 = no3 * .001 * 14.007, nh3 = nh3 * .001 * 14.007, tdn = tdn * .001 * 14.007, pon = pon * .001 * 14.007, pon_filt = pon_filt * .001 * 14.007,
+                      po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974) %>% 
+               rename(date = Date, site = Site)),
+  tar_target(umd_2123_clean, umd_2123 %>% 
+               mutate(Date = ymd(Date, tz = "America/Chicago")) %>% 
+               # handle ndls here
+               group_by(Date, Site) %>% 
+               summarise(latitude = mean(Latitude), longitude = mean(Longitude), depth = 0, source = "NPS/BRICO", type = first(Type),
+                         doc = mean(DOC, na.rm = T), poc = mean(POC, na.rm = T), no3 = mean(NO3, na.rm = T), nh3 = mean(NH3, na.rm = T), 
+                         tdn = mean(TDN, na.rm = T), pon = mean(PON, na.rm = T), po4 = mean(SRP, na.rm = T), tdp = mean(TDP, na.rm = T), 
+                         pp = mean(PP, na.rm = T), tp = mean(TP, na.rm = T), srsi = mean(SRSi, na.rm = T), chl = mean(Chl, na.rm = T),  
+                         tss = mean(TSS, na.rm = T)) %>% 
+               mutate(srsi = srsi * .001 * 60.084, doc = doc * .001 * 12.011, poc = poc * .001 * 12.011,  #converting units from to umol/L to mg/L by converting to mmol/L then multiplying by molar mass
+                      no3 = no3 * .001 * 14.007, nh3 = nh3 * .001 * 14.007, tdn = tdn * .001 * 14.007, pon = pon * .001 * 14.007, 
+                      po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974) %>% 
+               rename(date = Date, site = Site)),
   
+  tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>% 
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+  
+  tar_target(lake_full, dnr %>%
+               bind_rows(filter(umd, type == "Lake")) %>% 
+               select(date, site, source, depth, chl, chl_field, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)
+                      doc, poc, tn, tdn, pon, no3, nh3, tp, tdp, pp, po4, srsi, phyco) %>% 
+               arrange(date)),
+  
+  tar_target(trib_full, filter(umd, type == "Watershed") %>% 
+               select(date, site, source, depth, chl, chl_field, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)
+                      doc, poc, tn, tdn, pon, no3, nh3, tp, tdp, pp, po4, srsi, phyco) %>% 
+               arrange(date))
   
 )
 

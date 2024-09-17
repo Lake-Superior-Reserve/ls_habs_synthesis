@@ -35,7 +35,7 @@ s2_targets <- list(
   # based on sites across years
   tar_target(dnr_site_clus_prep, dnr %>% 
                st_drop_geometry() %>%  
-               select(-c(date, station, nh3, doc, do_sat, chl_f)) %>% 
+               select(-c(date, nh3, doc, do_sat, chl_f)) %>% 
                filter(!is.na(site)) %>% 
                mutate(site = as.factor(site)) %>% 
                group_by(site) %>% 
