@@ -24,9 +24,15 @@ s1_targets <- list(
     else return(date)
   })),
   
+  tar_target(qc_lsnerr, Vectorize(function(value, flag) {
+    if (is.na(flag)) return(value)
+    else if (str_detect(flag, "1") | str_detect(flag, "-3")) return(NA)
+    else return(value)
+  })),
   
   #raw data files
   tar_target(ls_shp_file, "ref/ls_shp/ls.shp", format = "file"),
+  tar_target(nerr_stations_file, "ref/nerr_sampling_stations.csv", format = "file"),
   
   tar_target(dnr_swims_19_file, "raw_data/wdnr/2019LSNSHABs_SWIMS.xlsx", format = "file"),
   tar_target(dnr_swims_21_file, "raw_data/wdnr/2021NSData_LDES.xlsx", format = "file"),
@@ -41,8 +47,19 @@ s1_targets <- list(
   tar_target(umd_1721_file, "raw_data/umd/SouthShoreArchive.csv", format = "file"),
   tar_target(umd_2123_file, "raw_data/umd/SouthShoreArchive2021to2023.csv", format = "file"),
   
+  tar_target(get_lkswq_file, function() {
+    dir <- "raw_data/lsnerr/lkswq"
+    lkswq <- data.frame()
+    for (file in list.files(dir)) {
+      lkswq <- bind_rows(lkswq, read_csv(str_c(dir,file,sep = "/")))
+    }
+    return(lkswq[1:30])
+  }),
+  
   #reading functions
   tar_target(ls_shp, read_sf(ls_shp_file)),
+  tar_target(nerr_stations, read_csv(nerr_stations_file) %>% 
+               select(site = `Station Code`, latitude = Latitude, longitude = Longitude)),
   
   tar_target(dnr_swims_19, read_xlsx(dnr_swims_19_file)),
   tar_target(dnr_swims_21, read_xlsx(dnr_swims_21_file)),
@@ -56,6 +73,8 @@ s1_targets <- list(
   
   tar_target(umd_1721, read_csv(umd_1721_file)),
   tar_target(umd_2123, read_csv(umd_2123_file)),
+  
+  tar_target(lkswq, get_lkswq_file()),
   
   # pull out coordinates from 2019 dnr file since other years are missing it
   # add additional coordinates provided by Ellen C 9/9/24
@@ -208,8 +227,10 @@ s1_targets <- list(
   
   # umd clean and combine
   tar_target(umd_1721_clean, umd_1721 %>% 
-               mutate(Date = mdy(Date, tz = "America/Chicago")) %>% 
-               # handle ndls here
+               mutate(Date = mdy(Date, tz = "America/Chicago"),
+                      NO3 = if_else(NO3Flag == "bdl", 0.001, NO3), # set to 0.5 * detection limit if below detection limit
+                      PON = if_else(PONFlag == "bdl", 0.0009, PON), # NO3 LOD = 0.002, PON LOD = 0.0018, SRP LOD = 0.0015 per Sandy B 9/17/24
+                      SRP = if_else(SRPFlag == "bdl", 0.0008, SRP)) %>% 
                group_by(Date, Site) %>% 
                summarise(latitude = mean(Latitude), longitude = mean(Longitude), depth = mean(Depth), source = first(Project), type = first(Type),
                          doc = mean(DOC, na.rm = T), poc = mean(POC, na.rm = T), poc_filt = mean(POC2, na.rm = T), no3 = mean(NO3, na.rm = T),
@@ -221,8 +242,10 @@ s1_targets <- list(
                       po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974) %>% 
                rename(date = Date, site = Site)),
   tar_target(umd_2123_clean, umd_2123 %>% 
-               mutate(Date = ymd(Date, tz = "America/Chicago")) %>% 
-               # handle ndls here
+               mutate(Date = ymd(Date, tz = "America/Chicago"),
+                      NO3 = if_else(NO3Flag == "bdl", 0.001, NO3), # set to 0.5 * detection limit if below detection limit
+                      PON = if_else(PONFlag == "bdl", 0.0009, PON) # NO3 LOD = 0.002, PON LOD = 0.0018, SRP LOD = 0.0015 per Sandy B 9/17/24
+                      ) %>% 
                group_by(Date, Site) %>% 
                summarise(latitude = mean(Latitude), longitude = mean(Longitude), depth = 0, source = "NPS/BRICO", type = first(Type),
                          doc = mean(DOC, na.rm = T), poc = mean(POC, na.rm = T), no3 = mean(NO3, na.rm = T), nh3 = mean(NH3, na.rm = T), 
@@ -237,6 +260,45 @@ s1_targets <- list(
   tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>% 
                st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
   
+  #lsnerr cleaning
+  tar_target(lkswq_clean, lkswq %>%
+               filter(!(is.na(Temp) & is.na(SpCond) &is.na(Sal) & is.na(DO_Pct) & is.na(DO_mgl) & is.na(Depth) & is.na(cDepth) & is.na(Level) & is.na(cLevel) & is.na(pH) & is.na(Turb) & is.na(ChlFluor))) %>% #drops almost half the rows
+               mutate(DateTimeStamp = mdy_hm(DateTimeStamp, tz = "America/Chicago"),
+                      Temp = qc_lsnerr(Temp, F_Temp),
+                      SpCond = qc_lsnerr(SpCond, F_SpCond),
+                      Sal = qc_lsnerr(Sal, F_Sal),
+                      DO_Pct = qc_lsnerr(DO_Pct, F_DO_Pct),
+                      DO_mgl = qc_lsnerr(DO_mgl, F_DO_mgl),
+                      Depth = qc_lsnerr(Depth, F_Depth),
+                      cDepth = qc_lsnerr(cDepth, F_cDepth),
+                      Level = qc_lsnerr(Level, F_Level),
+                      cLevel = qc_lsnerr(cLevel, F_cLevel),
+                      pH = qc_lsnerr(pH, F_pH),
+                      Turb = qc_lsnerr(Turb, F_Turb),
+                      ChlFluor = qc_lsnerr(ChlFluor, F_ChlFluor)) %>%
+               filter(!(is.na(Temp) & is.na(SpCond) &is.na(Sal) & is.na(DO_Pct) & is.na(DO_mgl) & is.na(Depth) & is.na(cDepth) & is.na(Level) & is.na(cLevel) & is.na(pH) & is.na(Turb) & is.na(ChlFluor))) # filter again to drop more than 10k rows
+  ),
+
+  tar_target(lkswq_dv, lkswq_clean %>%
+               mutate(date = date(DateTimeStamp),
+                      site = StationCode) %>%
+               group_by(date, site) %>%
+               summarise(temp = mean(Temp, na.rm = T),
+                         cond = mean(SpCond, na.rm = T),
+                         sal = mean(Sal, na.rm = T),
+                         do_sat = mean(DO_Pct, na.rm = T),
+                         do = mean(DO_mgl, na.rm = T),
+                         depth = mean(cDepth, na.rm = T),
+                         ph = mean(pH, na.rm = T),
+                         turb = mean(Turb, na.rm = T),
+                         chl_field = mean(ChlFluor, na.rm = T)) %>%
+               left_join(nerr_stations) %>%
+               mutate(source = "LSNERR", type = "Estuary") %>% 
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+  
+  
+  
+  
   tar_target(lake_full, dnr %>%
                bind_rows(filter(umd, type == "Lake")) %>% 
                select(date, site, source, depth, chl, chl_field, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)
@@ -244,8 +306,8 @@ s1_targets <- list(
                arrange(date)),
   
   tar_target(trib_full, filter(umd, type == "Watershed") %>% 
-               select(date, site, source, depth, chl, chl_field, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)
-                      doc, poc, tn, tdn, pon, no3, nh3, tp, tdp, pp, po4, srsi, phyco) %>% 
+               select(date, site, source, depth, chl, tss, # reorder, drop station and type (all lake)
+                      doc, poc, tdn, pon, no3, nh3, tp, tdp, pp, po4, srsi, phyco) %>% 
                arrange(date))
   
 )

@@ -13,8 +13,53 @@ library(plotly)
 library(DT)
 library(gganimate)
 library(sf)
+library(corrplot)
+library(Hmisc)
+library(factoextra)
+library(randomForest)
+library(randomForestExplainer)
+
 dnr <- tar_read(dnr)
-ls_crop_dnr <- tar_read(ls_crop_dnr)
+ls_crop_dnr <- st_crop(tar_read(ls_shp), st_bbox(c(xmin = -92, ymin = 46.6, xmax = -91, ymax = 46.9)))
+dnr_corr <- select(dnr, chl, tss, nh3, no3, tn, po4, tp, doc, temp, do, cond, ph, turb) %>% 
+      st_drop_geometry()
+dnr_cor <- rcorr(as.matrix(dnr_corr), type = 'spearman')
+dnr_cor$P[is.na(dnr_cor$P)] <- 1
+dnr_site_clus_prep <- dnr %>% 
+               st_drop_geometry() %>%  
+               select(-c(date, nh3, doc, do_sat, chl_field, depth, source, type)) %>% 
+               filter(str_detect(site, "site")) %>% 
+               mutate(site = str_split_i(site, " ", 2),
+                      site = as.factor(site)) %>% 
+               group_by(site) %>% 
+               summarise(chl = median(chl, na.rm = T),
+                         tss = median(tss, na.rm = T),
+                         no3 = median(no3, na.rm = T),
+                         tn = median(tn, na.rm = T),
+                         po4 = median(po4, na.rm = T),
+                         tp = median(tp, na.rm = T),
+                         temp = median(temp, na.rm = T),
+                         do = median(do, na.rm = T),
+                         cond = median(cond, na.rm = T),
+                         ph = median(ph, na.rm = T),
+                         turb = median(turb, na.rm = T)) %>% 
+               column_to_rownames("site") %>% 
+               scale() %>% 
+               na.omit()
+dnr_site_clus_pca <- prcomp(dnr_site_clus_prep)
+dnr_site_clus_kmean <- kmeans(dnr_site_clus_prep, centers = 2, nstart = 25)
+dnr_rf_prep <- dnr %>% 
+               st_drop_geometry() %>% 
+               mutate(month = month(date)) %>% 
+               select(-c(date, nh3, doc, do_sat, chl_field, depth, source, type)) %>% 
+               filter(!is.na(site)) %>% 
+               mutate(month = as.factor(month),
+                      site = as_factor(site))
+dnr_rf_prep_chem <- select(dnr_rf_prep, -c(month, site, temp, do, cond, ph, turb)) %>%
+               na.omit()
+dnr_rf_prep_full <- filter(dnr_rf_prep, ph > 6 & cond > 95) %>% na.omit()
+dnr_rf_chem <- randomForest(chl ~ ., data = dnr_rf_prep_chem, importance = TRUE)
+dnr_rf_full <- randomForest(chl ~ ., data = dnr_rf_prep_full, importance = TRUE)
 dnr_round <- dnr %>% 
   filter(!is.na(site)) %>% 
   mutate(date = floor_date(date, "week"))
@@ -71,7 +116,7 @@ Any guesses on why this might be happening? I'm currently not dropping any of th
 Here's a plot showing spearman correlation coefficients between variables. Bigger size/darker color means a stronger correlation. Only correlations with P < 0.05 are shown.
 
 ```{r corr, echo=FALSE}
-corrplot::corrplot(tar_read(dnr_corr)$r, type = "lower", tl.cex = .5, p.mat = tar_read(dnr_corr)$P, sig.level = 0.05, insig = 'blank', outline = T)
+corrplot(dnr_cor$r, type = "lower", tl.cex = .5, p.mat = dnr_cor$P, sig.level = 0.05, insig = 'blank', outline = T)
 ```
 
 The main takeaway is there is one big group of variables that are all correlated with each other: chlorophyll a, TSS, NH3, TN, PO4, TP, DOC, conductivity, and turbidity. (With a notable exception being that NH3 and conductivity are inversely correlated.) NO3 is inversely correlated with almost every member of that group. 
@@ -81,8 +126,8 @@ Other notes: Temperature has clear inverse correlations with nitrogen species. C
 
 Both of these plots show the results of PCA on the median values of variables at each site. The first shows how each variable is related to the principal components, while the second plot shows groups based on a K-means cluster analysis.
 ```{r cluster, echo=FALSE}
-biplot(tar_read(dnr_site_clus_pca))
-factoextra::fviz_cluster(tar_read(dnr_site_clus_kmean), data = tar_read(dnr_site_clus_prep))
+biplot(dnr_site_clus_pca)
+fviz_cluster(dnr_site_clus_kmean, data = dnr_site_clus_prep)
 ```
 
 It's pretty clear to see that PC1 is basically a measure of the large group of correlated variables from above, though without TSS. This is because most sites had a very low median TSS. TSS is represented within PC2, which is why site 7 (2x median TSS of all other sites) is way off on its own.
@@ -93,27 +138,24 @@ Looking at a map, it seems as if the Eastern sites would receive more runoff--is
 
 Here's a table of median values for each site for your perusal (most values in mg/L, chl in ug/L):
 ```{r compare 7, echo=FALSE}
-
-
 dnr %>% 
-               sf::st_drop_geometry() %>%  
-               select(-c(date, station, nh3, doc, do_sat, chl_f)) %>% 
-               filter(!is.na(site)) %>% 
-               mutate(site = as.factor(site)) %>% 
-               group_by(site) %>% 
-               summarise(chl = median(chl, na.rm = T),
-                         tss = median(tss, na.rm = T),
-                         no3 = median(no3, na.rm = T),
-                         tn = median(tn, na.rm = T),
-                         po4 = median(po4, na.rm = T),
-                         tp = median(tp, na.rm = T),
-                         temp = round(median(temp, na.rm = T),2),
-                         do = round(median(do, na.rm = T),2),
-                         cond = round(median(cond, na.rm = T),2),
-                         ph = round(median(ph, na.rm = T),2),
-                         turb = round(median(turb, na.rm = T),2)) %>% 
+  st_drop_geometry() %>% 
+  select(-c(date, nh3, doc, do_sat, chl_field)) %>% 
+  filter(!is.na(site)) %>% 
+  mutate(site = as.factor(site)) %>%
+  group_by(site) %>%
+  summarise(chl = median(chl, na.rm = T),
+            tss = median(tss, na.rm = T),
+            no3 = median(no3, na.rm = T),
+            tn = median(tn, na.rm = T),
+            po4 = median(po4, na.rm = T),
+            tp = median(tp, na.rm = T),
+            temp = round(median(temp, na.rm = T),2),
+            do = round(median(do, na.rm = T),2),
+            cond = round(median(cond, na.rm = T),2),
+            ph = round(median(ph, na.rm = T),2),
+            turb = round(median(turb, na.rm = T),2)) %>% 
   datatable()
-
 ```
 
 And plots comparing variables across the two groups (with a few high outliers dropped for tss, tp, tn, and turbidity):
@@ -267,7 +309,7 @@ These tables show various measures of importance of variables to each model. Wit
 
 For this first model, I included all parameters that had 3+ years of data. Month is month of the year, to see if chlorophyll varied across the summer in any predictable manner. 
 ```{r rf_full, echo=FALSE}
-importance <- randomForestExplainer::measure_importance(tar_read(dnr_rf_full)) %>% 
+importance <- measure_importance(dnr_rf_full) %>% 
   mutate(mse_increase = round(mse_increase, 3),
          mean_min_depth = round(mean_min_depth, 2),
          node_purity_increase = round(node_purity_increase, 2)) %>% 
@@ -280,7 +322,7 @@ Interestingly, the water quality variables come out as more important than the c
 
 For this second model, I only included water chemistry (nutrients + TSS) parameters since they were less important (and so harder to compare to each other) in the full random forest model.
 ```{r rf_chem, echo=FALSE}
-importance <- randomForestExplainer::measure_importance(tar_read(dnr_rf_chem)) %>% 
+importance <- measure_importance(dnr_rf_chem) %>% 
   mutate(mse_increase = round(mse_increase, 3),
          mean_min_depth = round(mean_min_depth, 2),
          node_purity_increase = round(node_purity_increase, 2)) %>% 
