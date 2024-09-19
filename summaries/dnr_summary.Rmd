@@ -19,8 +19,8 @@ library(factoextra)
 library(randomForest)
 library(randomForestExplainer)
 
-dnr <- tar_read(dnr)
-ls_crop_dnr <- st_crop(tar_read(ls_shp), st_bbox(c(xmin = -92, ymin = 46.6, xmax = -91, ymax = 46.9)))
+dnr <- tar_read(dnr, store = "../_targets")
+ls_crop_dnr <- st_crop(tar_read(ls_shp, store = "../_targets"), st_bbox(c(xmin = -92, ymin = 46.6, xmax = -91, ymax = 46.9)))
 dnr_corr <- select(dnr, chl, tss, nh3, no3, tn, po4, tp, doc, temp, do, cond, ph, turb) %>% 
       st_drop_geometry()
 dnr_cor <- rcorr(as.matrix(dnr_corr), type = 'spearman')
@@ -141,8 +141,9 @@ Here's a table of median values for each site for your perusal (most values in m
 dnr %>% 
   st_drop_geometry() %>% 
   select(-c(date, nh3, doc, do_sat, chl_field)) %>% 
-  filter(!is.na(site)) %>% 
-  mutate(site = as.factor(site)) %>%
+  filter(str_detect(site, "site")) %>% 
+               mutate(site = str_split_i(site, " ", 2),
+                      site = as.factor(site)) %>%
   group_by(site) %>%
   summarise(chl = median(chl, na.rm = T),
             tss = median(tss, na.rm = T),
@@ -162,7 +163,9 @@ And plots comparing variables across the two groups (with a few high outliers dr
 
 ```{r group_plots, echo=FALSE, fig.width=3, fig.height=5}
 dnr_groups <- dnr %>% 
-  filter(!is.na(site)) %>% 
+  filter(str_detect(site, "site")) %>% 
+  mutate(site = str_split_i(site, " ", 2),
+         site = as.numeric(site)) %>% 
   mutate(group = if_else(site > 7, "east", "west"),
          group = as_factor(group))
 
