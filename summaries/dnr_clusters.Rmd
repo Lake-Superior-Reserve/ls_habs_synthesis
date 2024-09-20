@@ -1,0 +1,275 @@
+---
+title: "DNR Nearshore Sampling Site Cluster Analysis"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(targets)
+library(tidyverse)
+library(plotly)
+library(DT)
+library(sf)
+library(factoextra)
+library(cluster)
+library(ggrepel)
+
+dnr <- tar_read(dnr, store = "../_targets")
+dnr_site_clus_prep <- dnr %>% 
+               st_drop_geometry() %>%  
+               select(-c(date, nh3, doc, do_sat, chl_field, depth, source, type)) %>% 
+               filter(str_detect(site, "site")) %>% 
+               mutate(site = str_split_i(site, " ", 2),
+                      site = as.factor(site)) %>% 
+               group_by(site) %>% 
+               summarise(chl = median(chl, na.rm = T),
+                         tss = median(tss, na.rm = T),
+                         no3 = median(no3, na.rm = T),
+                         tn = median(tn, na.rm = T),
+                         po4 = median(po4, na.rm = T),
+                         tp = median(tp, na.rm = T),
+                         temp = median(temp, na.rm = T),
+                         do = median(do, na.rm = T),
+                         cond = median(cond, na.rm = T),
+                         ph = median(ph, na.rm = T),
+                         turb = median(turb, na.rm = T)) %>% 
+               column_to_rownames("site") %>% 
+               scale()
+
+dnr_site_clus_prep_tss <- dnr %>% 
+               st_drop_geometry() %>%  
+               select(-c(date, nh3, doc, do_sat, chl_field, depth, source, type, tss)) %>% 
+               filter(str_detect(site, "site")) %>% 
+               mutate(site = str_split_i(site, " ", 2),
+                      site = as.factor(site)) %>% 
+               group_by(site) %>% 
+               summarise(chl = median(chl, na.rm = T),
+                         no3 = median(no3, na.rm = T),
+                         tn = median(tn, na.rm = T),
+                         po4 = median(po4, na.rm = T),
+                         tp = median(tp, na.rm = T),
+                         temp = median(temp, na.rm = T),
+                         do = median(do, na.rm = T),
+                         cond = median(cond, na.rm = T),
+                         ph = median(ph, na.rm = T),
+                         turb = median(turb, na.rm = T)) %>% 
+               column_to_rownames("site") %>% 
+               scale()
+
+dnr_site_clus_pca <- prcomp(dnr_site_clus_prep)
+dnr_site_clus_pca_tss <- prcomp(dnr_site_clus_prep_tss)
+
+dnr_pca <- data.frame(dnr_site_clus_pca$x) %>% 
+  rownames_to_column(var = "site") %>% 
+  mutate(site = as.numeric(site)) %>% 
+  arrange(site)
+
+dnr_site_clus_kmean2 <- kmeans(dnr_site_clus_prep, centers = 2, nstart = 25)
+dnr_site_clus_kmean3 <- kmeans(dnr_site_clus_prep, centers = 3, nstart = 25)
+dnr_site_clus_kmean4 <- kmeans(dnr_site_clus_prep, centers = 4, nstart = 25)
+dnr_site_clus_kmean5 <- kmeans(dnr_site_clus_prep, centers = 5, nstart = 25)
+dnr_site_clus_kmean6 <- kmeans(dnr_site_clus_prep, centers = 6, nstart = 25)
+dnr_site_clus_kmean7 <- kmeans(dnr_site_clus_prep, centers = 7, nstart = 25)
+
+# dnr_site_clus_pam2 <- pam(dnr_site_clus_prep, 2, nstart = 25)
+# dnr_site_clus_pam3 <- pam(dnr_site_clus_prep, 3, nstart = 25)
+# dnr_site_clus_pam4 <- pam(dnr_site_clus_prep, 4, nstart = 25)
+# dnr_site_clus_pam5 <- pam(dnr_site_clus_prep, 5, nstart = 25)
+# dnr_site_clus_pam6 <- pam(dnr_site_clus_prep, 6, nstart = 25)
+# dnr_site_clus_pam7 <- pam(dnr_site_clus_prep, 7, nstart = 25)
+
+clus_assign <- Vectorize(function(site, k) {
+  if (site %in% c(1,3,6)) return(1)
+  else if (site %in% c(2,4,5)) {
+    if (k == 7 & site == 4) return(3)
+    if (k < 3) return(1)
+    else return(2)
+  }
+  else if (site == 7) {
+    if (k == 2) return(1)
+    else if (k < 5) return(2)
+    else if (k == 7) return(4)
+    else return(3)
+  }
+  else if (site == 8) {
+    if (k < 6) return(1)
+    else if (k == 7) return(5)
+    else return(4)
+  }
+  else if (site < 13) {
+    if (k < 4) return(k)
+    else return(k-1)
+  }
+  else return(k)
+})
+
+dnr_pca_clus <- dnr_pca %>%
+  mutate(clus2 = clus_assign(site, 2),
+         clus3 = clus_assign(site, 3),
+         clus4 = clus_assign(site, 4),
+         clus5 = clus_assign(site, 5),
+         clus6 = clus_assign(site, 6),
+         clus7 = clus_assign(site, 7),
+         clus2 = as_factor(clus2),
+         clus3 = as_factor(clus3),
+         clus4 = as_factor(clus4),
+         clus5 = as_factor(clus5),
+         clus6 = as_factor(clus6),
+         clus7 = as_factor(clus7),
+         site = as_factor(site)) 
+
+StatChull <- ggproto("StatChull", Stat,
+  compute_group = function(data, scales) {
+    data[chull(data$x, data$y), , drop = FALSE]
+  },
+  
+  required_aes = c("x", "y")
+)
+stat_chull <- function(mapping = NULL, data = NULL, geom = "polygon",
+                       position = "identity", na.rm = FALSE, show.legend = NA, 
+                       inherit.aes = TRUE, ...) {
+  layer(
+    stat = StatChull, data = data, mapping = mapping, geom = geom, 
+    position = position, show.legend = show.legend, inherit.aes = inherit.aes,
+    params = list(na.rm = na.rm, ...)
+  )
+}
+```
+
+
+### PCA and Median Values
+
+Here's the pc1 vs pc2 plot again for reference, as well as a version without TSS.
+```{r pca, echo=FALSE, fig.height=7}
+biplot(dnr_site_clus_pca)
+biplot(dnr_site_clus_pca_tss)
+```
+
+I think the version without TSS make the separation among the Eastern sites more clear and highlights why site 7 is clustered with 2/4/5 when using a small number of clusters.
+
+And the table of median values for each site (most values in mg/L, chl in ug/L):
+```{r compare 7, echo=FALSE}
+dnr %>% 
+  st_drop_geometry() %>% 
+  select(-c(date, nh3, doc, do_sat, chl_field)) %>% 
+  filter(str_detect(site, "site")) %>% 
+               mutate(site = str_split_i(site, " ", 2),
+                      site = as.factor(site)) %>%
+  group_by(site) %>%
+  summarise(chl = median(chl, na.rm = T),
+            tss = median(tss, na.rm = T),
+            no3 = median(no3, na.rm = T),
+            tn = median(tn, na.rm = T),
+            po4 = median(po4, na.rm = T),
+            tp = median(tp, na.rm = T),
+            temp = round(median(temp, na.rm = T),2),
+            do = round(median(do, na.rm = T),2),
+            cond = round(median(cond, na.rm = T),2),
+            ph = round(median(ph, na.rm = T),2),
+            turb = round(median(turb, na.rm = T),2)) %>% 
+  datatable()
+```
+
+### Cluster Choices
+Here are 2 plots comparing number of clusters with within cluster sum of squares. First plot is using k-means, second is using k-medioids (pam).
+
+```{r cluster1, echo=FALSE}
+fviz_nbclust(dnr_site_clus_prep, kmeans, method = "wss")
+fviz_nbclust(dnr_site_clus_prep, pam, method = "wss")
+fviz_cluster(dnr_site_clus_kmean4, data = dnr_site_clus_prep_tss)
+```
+
+I went with 2 clusters originally, since I tend to be more of a lumper than a splitter. To my eye 5 and 7 clusters are also "elbow points" for k-means; 6 looks like the elbow for k-medioids. 
+
+
+Here's how 2-7 clusters breaks down. Clusters based on k-means and are numbered west to east. Cluster assignments were the same between k-means and k-medioids except at k=3 (k-medioids splits eastern sites instead of western) and k=7 (k-medioids puts site 1 on its own, rather than site 4).
+
+```{r cluster, echo=FALSE}
+ggplot(data = dnr_pca_clus, aes(x = PC1, y = PC2, color = clus2)) +
+  geom_point() +
+  stat_chull(fill = NA) +
+  geom_label_repel(aes(label = site))
+ggplot(data = dnr_pca_clus, aes(x = PC1, y = PC2, color = clus3)) +
+  geom_point() +
+  stat_chull(fill = NA) +
+  geom_label_repel(aes(label = site))
+ggplot(data = dnr_pca_clus, aes(x = PC1, y = PC2, color = clus4)) +
+  geom_point() +
+  stat_chull(fill = NA) +
+  geom_label_repel(aes(label = site))
+ggplot(data = dnr_pca_clus, aes(x = PC1, y = PC2, color = clus5)) +
+  geom_point() +
+  stat_chull(fill = NA) +
+  geom_label_repel(aes(label = site))
+ggplot(data = dnr_pca_clus, aes(x = PC1, y = PC2, color = clus6)) +
+  geom_point() +
+  stat_chull(fill = NA) +
+  geom_label_repel(aes(label = site))
+ggplot(data = dnr_pca_clus, aes(x = PC1, y = PC2, color = clus7)) +
+  geom_point() +
+  stat_chull(fill = NA) +
+  geom_label_repel(aes(label = site))
+```
+
+I think 4 or 6 clusters makes the most sense based on these clusters. If you don't include TSS, the cluster pattern is the same, except 7 stays clustered with 2 and 5. So, at 5 clusters 8 is isolated (rather than 7); and at 6 clusters 4 is isolated (in addition to 8).
+
+
+Here are some plots comparing variables across the 6 clusters (with a few high outliers dropped for tss, tp, tn, and turbidity). For reference:
+Cluster 1 Sites: 1,3,6
+Cluster 2 Sites: 2,4,5
+Cluster 3 Sites: 7
+Cluster 4 Sites: 8
+Cluster 5 Sites: 9,10,11,12
+Cluster 6 Sites: 13,14,15
+
+```{r group_plots, echo=FALSE, fig.width=3, fig.height=5}
+dnr_clusters <- dnr %>%
+  filter(str_detect(site, "site")) %>%
+  mutate(site = str_split_i(site, " ", 2),
+         site = as.numeric(site)) %>%
+  mutate(cluster = clus_assign(site, 6),
+         cluster = as_factor(cluster))
+
+ggplot(data = dnr_clusters, aes(x = cluster, y = chl, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+dnr_clusters %>%
+  filter(tss < 50) %>%
+  ggplot(aes(x = cluster, y = tss, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+dnr_clusters %>%
+  filter(tp < 0.05) %>%
+  ggplot(aes(x = cluster, y = tp, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+dnr_clusters %>%
+  filter(tn < 1) %>%
+  ggplot(aes(x = cluster, y = tn, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+ggplot(data = dnr_clusters, aes(x = cluster, y = temp, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+ggplot(data = dnr_clusters, aes(x = cluster, y = cond, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+dnr_clusters %>%
+  filter(turb < 100) %>%
+  ggplot(aes(x = cluster, y = turb, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+ggplot(data = dnr_clusters, aes(x = cluster, y = ph, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+ggplot(data = dnr_clusters, aes(x = cluster, y = no3, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+ggplot(data = dnr_clusters, aes(x = cluster, y = do, color = cluster)) +
+  geom_boxplot() +
+  guides(color="none")
+
+```
+

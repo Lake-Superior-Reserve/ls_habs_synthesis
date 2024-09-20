@@ -1,0 +1,60 @@
+---
+title: "DNR Nearshore Sampling QC Issues"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(targets)
+library(tidyverse)
+library(plotly)
+
+dnr <- tar_read(dnr, store = "../_targets")
+```
+
+
+### QC notes
+Some suspicious pH values on 6/29/22, 7/12/22, and 8/9/22 (< 6) as well as 7/13/22 to a lesser extent (low 6s).
+```{r ph, echo=FALSE}
+plot <- dnr %>% 
+  ggplot() + 
+    geom_point(aes(x = date, y = ph, label = site))
+ggplotly(plot)  
+```
+
+
+Some suspicious conductivity values on 8/12/19, 8/15/19, 9/23/19, and 9/24/19 (< 90 uS/cm).
+```{r cond, echo=FALSE}
+plot <- dnr %>% 
+  ggplot() + 
+    geom_point(aes(x = date, y = cond, label = site))
+ggplotly(plot)  
+```
+
+
+DO is consistently (and oddly) high in 2023. Also, 8/22/22 has notably low DO. July 2022 also has somewhat high DO.
+```{r do, echo=FALSE}
+plot <- dnr %>% 
+  mutate(year = year(date),
+         year = as_factor(year)) %>% 
+  ggplot() + 
+    geom_point(aes(x = temp, y = do, color = year, label = date))
+ggplotly(plot)  
+plot <- dnr %>% 
+  mutate(year = year(date),
+         year = as_factor(year)) %>% 
+  ggplot() + 
+    geom_point(aes(x = temp, y = do_sat, color = year, label = date))
+ggplotly(plot)
+plot <- dnr %>% 
+  mutate(year = year(date),
+         year = as_factor(year)) %>% 
+  ggplot() + 
+    geom_point(aes(x = do, y = do_sat, color = year, label = date))
+ggplotly(plot)
+```
+
+
+Any guesses on why this might be happening? I'm currently not dropping any of these suspicious values, but I'm leaning towards dropping the ph and conductivity values and potentially adjusting down all of the 2023 DO values.

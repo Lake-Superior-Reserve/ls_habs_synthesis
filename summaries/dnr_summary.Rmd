@@ -14,8 +14,6 @@ library(DT)
 library(gganimate)
 library(sf)
 library(corrplot)
-library(Hmisc)
-library(factoextra)
 library(randomForest)
 library(randomForestExplainer)
 
@@ -27,7 +25,7 @@ dnr_cor <- rcorr(as.matrix(dnr_corr), type = 'spearman')
 dnr_cor$P[is.na(dnr_cor$P)] <- 1
 dnr_site_clus_prep <- dnr %>% 
                st_drop_geometry() %>%  
-               select(-c(date, nh3, doc, do_sat, chl_field, depth, source, type)) %>% 
+               select(-c(date, nh3, doc, do, chl_field, depth, source, type)) %>% 
                filter(str_detect(site, "site")) %>% 
                mutate(site = str_split_i(site, " ", 2),
                       site = as.factor(site)) %>% 
@@ -39,7 +37,7 @@ dnr_site_clus_prep <- dnr %>%
                          po4 = median(po4, na.rm = T),
                          tp = median(tp, na.rm = T),
                          temp = median(temp, na.rm = T),
-                         do = median(do, na.rm = T),
+                         do = median(do_sat, na.rm = T),
                          cond = median(cond, na.rm = T),
                          ph = median(ph, na.rm = T),
                          turb = median(turb, na.rm = T)) %>% 
@@ -47,7 +45,7 @@ dnr_site_clus_prep <- dnr %>%
                scale() %>% 
                na.omit()
 dnr_site_clus_pca <- prcomp(dnr_site_clus_prep)
-dnr_site_clus_kmean <- kmeans(dnr_site_clus_prep, centers = 2, nstart = 25)
+dnr_site_clus_kmean <- kmeans(dnr_site_clus_prep, centers = 7, nstart = 25)
 dnr_rf_prep <- dnr %>% 
                st_drop_geometry() %>% 
                mutate(month = month(date)) %>% 
@@ -66,51 +64,6 @@ dnr_round <- dnr %>%
 
 ```
 
-
-### First, a few QC notes
-Some suspicious pH values on 6/29/22, 7/12/22, and 8/9/22 (< 6) as well as 7/13/22 to a lesser extent (low 6s).
-```{r ph, echo=FALSE}
-plot <- dnr %>% 
-  ggplot() + 
-    geom_point(aes(x = date, y = ph, label = site))
-ggplotly(plot)  
-```
-
-
-Some suspicious conductivity values on 8/12/19, 8/15/19, 9/23/19, and 9/24/19 (< 90 uS/cm).
-```{r cond, echo=FALSE}
-plot <- dnr %>% 
-  ggplot() + 
-    geom_point(aes(x = date, y = cond, label = site))
-ggplotly(plot)  
-```
-
-
-DO is consistently (and oddly) high in 2023. Also, 8/22/22 has notably low DO. July 2022 also has somewhat high DO.
-```{r do, echo=FALSE}
-plot <- dnr %>% 
-  mutate(year = year(date),
-         year = as_factor(year)) %>% 
-  ggplot() + 
-    geom_point(aes(x = temp, y = do, color = year, label = date))
-ggplotly(plot)  
-plot <- dnr %>% 
-  mutate(year = year(date),
-         year = as_factor(year)) %>% 
-  ggplot() + 
-    geom_point(aes(x = temp, y = do_sat, color = year, label = date))
-ggplotly(plot)
-plot <- dnr %>% 
-  mutate(year = year(date),
-         year = as_factor(year)) %>% 
-  ggplot() + 
-    geom_point(aes(x = do, y = do_sat, color = year, label = date))
-ggplotly(plot)
-```
-
-
-Any guesses on why this might be happening? I'm currently not dropping any of these suspicious values, but I'm leaning towards dropping the ph and conductivity values and potentially adjusting down all of the 2023 DO values.
-
 ## Correlations between variables
 
 Here's a plot showing spearman correlation coefficients between variables. Bigger size/darker color means a stronger correlation. Only correlations with P < 0.05 are shown.
@@ -121,84 +74,6 @@ corrplot(dnr_cor$r, type = "lower", tl.cex = .5, p.mat = dnr_cor$P, sig.level = 
 
 The main takeaway is there is one big group of variables that are all correlated with each other: chlorophyll a, TSS, NH3, TN, PO4, TP, DOC, conductivity, and turbidity. (With a notable exception being that NH3 and conductivity are inversely correlated.) NO3 is inversely correlated with almost every member of that group. 
 Other notes: Temperature has clear inverse correlations with nitrogen species. Conductivity is inversely correlated with NH3 and NO3, but is positively correlated with TN. pH drops when TN and TP increase.
-
-## Site Cluster Analysis
-
-Both of these plots show the results of PCA on the median values of variables at each site. The first shows how each variable is related to the principal components, while the second plot shows groups based on a K-means cluster analysis.
-```{r cluster, echo=FALSE}
-biplot(dnr_site_clus_pca)
-fviz_cluster(dnr_site_clus_kmean, data = dnr_site_clus_prep)
-```
-
-It's pretty clear to see that PC1 is basically a measure of the large group of correlated variables from above, though without TSS. This is because most sites had a very low median TSS. TSS is represented within PC2, which is why site 7 (2x median TSS of all other sites) is way off on its own.
-
-The sites are also split into two groups, along PC1. Interesting, this split is also geographic! Western sites (1-7) typically have higher group A variables (everything but NO3 and DO), while Eastern sites (9-15) typically have lower. Site 8 is more closely related to the Eastern sites, but somewhat straddles the two. 
-
-Looking at a map, it seems as if the Eastern sites would receive more runoff--is this the case? That would explain why site 15 has some similarities to them, since (I think) it's at the mouth of the Siskiwit.
-
-Here's a table of median values for each site for your perusal (most values in mg/L, chl in ug/L):
-```{r compare 7, echo=FALSE}
-dnr %>% 
-  st_drop_geometry() %>% 
-  select(-c(date, nh3, doc, do_sat, chl_field)) %>% 
-  filter(str_detect(site, "site")) %>% 
-               mutate(site = str_split_i(site, " ", 2),
-                      site = as.factor(site)) %>%
-  group_by(site) %>%
-  summarise(chl = median(chl, na.rm = T),
-            tss = median(tss, na.rm = T),
-            no3 = median(no3, na.rm = T),
-            tn = median(tn, na.rm = T),
-            po4 = median(po4, na.rm = T),
-            tp = median(tp, na.rm = T),
-            temp = round(median(temp, na.rm = T),2),
-            do = round(median(do, na.rm = T),2),
-            cond = round(median(cond, na.rm = T),2),
-            ph = round(median(ph, na.rm = T),2),
-            turb = round(median(turb, na.rm = T),2)) %>% 
-  datatable()
-```
-
-And plots comparing variables across the two groups (with a few high outliers dropped for tss, tp, tn, and turbidity):
-
-```{r group_plots, echo=FALSE, fig.width=3, fig.height=5}
-dnr_groups <- dnr %>% 
-  filter(str_detect(site, "site")) %>% 
-  mutate(site = str_split_i(site, " ", 2),
-         site = as.numeric(site)) %>% 
-  mutate(group = if_else(site > 7, "east", "west"),
-         group = as_factor(group))
-
-ggplot(data = dnr_groups, aes(x = group, y = chl)) +
-  geom_boxplot()
-dnr_groups %>%
-  filter(tss < 50) %>%
-  ggplot(aes(x = group, y = tss)) +
-  geom_boxplot()
-dnr_groups %>%
-  filter(tp < 0.05) %>%
-  ggplot(aes(x = group, y = tp)) +
-  geom_boxplot()
-dnr_groups %>%
-  filter(tn < 1) %>%
-  ggplot(aes(x = group, y = tn)) +
-  geom_boxplot()
-ggplot(data = dnr_groups, aes(x = group, y = temp)) +
-  geom_boxplot()
-ggplot(data = dnr_groups, aes(x = group, y = cond)) +
-  geom_boxplot()
-dnr_groups %>%
-  filter(turb < 100) %>%
-  ggplot(aes(x = group, y = turb)) +
-  geom_boxplot()
-ggplot(data = dnr_groups, aes(x = group, y = ph)) +
-  geom_boxplot()
-ggplot(data = dnr_groups, aes(x = group, y = no3)) +
-  geom_boxplot()
-ggplot(data = dnr_groups, aes(x = group, y = do)) +
-  geom_boxplot()
-
-```
 
 
 ## Maps!
