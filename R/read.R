@@ -1,6 +1,19 @@
+source("R/wqp_clean_fn.R")
+
 s1_targets <- list(
   
   #helper functions
+  tar_target(drop_na_cols, function(df) {
+    na_cols <- c()
+    for (n in 1:length(df)) {
+      cur_name <- colnames(df)[n]
+      if (all(is.na(df[n]))) na_cols <- append(na_cols, cur_name)
+    } 
+    print("Dropping:")
+    print(na_cols)
+    return(select(df, -all_of(na_cols)))
+  }),
+  
   tar_target(dnr_rename, Vectorize(function(param) {
     if (param == "530") return("tss")
     else if (param == "600") return("tn")
@@ -37,9 +50,13 @@ s1_targets <- list(
     else return(value)
   })),
   
+  wqp_clean_fns,
+  
   #raw data files
   tar_target(ls_shp_file, "ref/ls_shp/ls.shp", format = "file"),
   tar_target(nerr_stations_file, "ref/nerr_sampling_stations.csv", format = "file"),
+  tar_target(cb_stations_file, "ref/CB_SiteCoordinates.csv", format = "file"),
+  tar_target(wqp_synref_file, "ref/wqp_Synonym_Reference_Table.csv", format = "file"),
   
   tar_target(dnr_swims_19_file, "raw_data/wdnr/2019LSNSHABs_SWIMS.xlsx", format = "file"),
   tar_target(dnr_swims_21_file, "raw_data/wdnr/2021NSData_LDES.xlsx", format = "file"),
@@ -53,6 +70,8 @@ s1_targets <- list(
   
   tar_target(umd_1721_file, "raw_data/umd/SouthShoreArchive.csv", format = "file"),
   tar_target(umd_2123_file, "raw_data/umd/SouthShoreArchive2021to2023.csv", format = "file"),
+  
+  tar_target(cbnut_file, "raw_data/ncbc/Compiled_Bay_Data_2014-2022.xlsx"),
   
   tar_target(lksnut12_file, "raw_data/lsnerr/lksnut/lksnut2012.csv", format = "file"),
   tar_target(lksnut13_file, "raw_data/lsnerr/lksnut/lksnut2013.csv", format = "file"),
@@ -85,6 +104,9 @@ s1_targets <- list(
                mutate(site = str_sub(site, end = 5),
                       longitude = 0 - as.numeric(longitude)) %>% 
                filter(!duplicated(site))),
+  tar_target(cb_stations, read_csv(cb_stations_file) %>% 
+               select(site = Site_ID, latitude = Lat, longitude = Long)),
+  tar_target(wqp_synref, read_csv(wqp_synref_file)),
   
   tar_target(dnr_swims_19, read_xlsx(dnr_swims_19_file)),
   tar_target(dnr_swims_21, read_xlsx(dnr_swims_21_file)),
@@ -98,6 +120,8 @@ s1_targets <- list(
   
   tar_target(umd_1721, read_csv(umd_1721_file)),
   tar_target(umd_2123, read_csv(umd_2123_file)),
+  
+  tar_target(cbnut, read_xlsx(cbnut_file)),
   
   tar_target(lksnut12, read_csv(lksnut12_file, 
                                 col_types = cols(NH4F = col_double(), NO2F = col_double(), 
@@ -133,6 +157,10 @@ s1_targets <- list(
   tar_target(lksnut, bind_rows(lksnut12, lksnut13, lksnut14, lksnut15, lksnut16, lksnut17, lksnut18, lksnut19, lksnut20, lksnut21, lksnut22, lksnut23)),
   
   tar_target(lkswq, get_lkswq_file()),
+  
+  #pull wqp data
+  tar_target(wqp_pull_trib, TADA_BigDataRetrieval(huc = c("04010102", "04010201", "04010202", "04010301", "04010302"), startDate = "2010-01-01", endDate = "2023-12-31")),
+  tar_target(wqp_pull_ls, TADA_BigDataRetrieval(huc = "04020300", startDate = "2010-01-01", endDate = "2023-12-31")),
   
   # pull out coordinates from 2019 dnr file since other years are missing it
   # add additional coordinates provided by Ellen C 9/9/24
@@ -318,6 +346,25 @@ s1_targets <- list(
   tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>% 
                st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
   
+  #ncbc cleaning
+  tar_target(cbnut_clean, cbnut %>% 
+               select(date = Date, site = Station, tp = TP_mgL, chl = Chla_ugL, pp = PP_ugL, po4 = SRP_mgL, tdp = `TDP_ug/L`,
+                      poc = POC_ugL, pon = PON_ugL, no3 = `NO3_mg/L`, nh3 = `NH3_ug/L`, tss = `TSS _mgL`, temp = mn_temp,
+                      do = mn_HDOmgl, do_sat = mn_HDOsat, ph = mn_pHunits, cond = mn_spcond, turb = mn_turb, chl_field = mn_chl) %>% 
+               mutate(pp = 0.001 * pp, # convert to mg/L
+                      tdp = 0.001 * tdp,
+                      poc = 0.001 * poc,
+                      pon = 0.001 * pon,
+                      nh3 = 0.001 * nh3,
+                      turb = if_else(turb < 0 | turb > 1000, NA, turb),
+                      do = if_else(do > 20, NA, do),
+                      ph = if_else(ph > 14, NA, ph),
+                      force_tz(date, tzone = "America/Chicago"),
+                      date = date(date)) %>% 
+               left_join(cb_stations) %>% 
+               mutate(source = "NCBC", type = "Lake") %>%
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+  
   #lsnerr cleaning
   tar_target(lkswq_clean, lkswq %>%
                filter(!(is.na(Temp) & is.na(SpCond) &is.na(Sal) & is.na(DO_Pct) & is.na(DO_mgl) & is.na(Depth) & is.na(cDepth) & is.na(Level) & is.na(cLevel) & is.na(pH) & is.na(Turb) & is.na(ChlFluor))) %>% #drops almost half the rows
@@ -374,15 +421,14 @@ s1_targets <- list(
   
   tar_target(lksnut_dv, lksnut_clean %>% 
              mutate(date = str_split_i(DateTimeStamp, " ", 1),
-                    date = mdy(date),
+                    date = mdy(date, tz = "America/Chicago"),
                     site = `Station Code`,
                     site = str_sub(site, end = 5)) %>%
              group_by(date, site) %>%
              summarise(po4 = mean(PO4F, na.rm = T),
                        tp = mean(TP, na.rm = T),
                        nh3 = mean(NH4F, na.rm = T),
-                       no2 = mean(NO2F, na.rm = T),
-                       no3 = mean(NO23F, na.rm = T),
+                       no3 = mean(NO23F, na.rm = T), # note that we're calling nitrate/nitrite no3
                        tn = mean(TN, na.rm = T),
                        si = mean(SiO4F, na.rm = T),
                        chl = mean(CHLA_N, na.rm = T),
@@ -395,19 +441,138 @@ s1_targets <- list(
                st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
   
   
+  # cleaning WQP data
+  # first just trim sites outside area, which requires autoclean
+  tar_target(wqp_trib, wqp_pull_trib %>%
+               TADA_AutoClean() %>%
+               filter(TADA.LatitudeMeasure > 46)), #drop sites missing lat/long
+  tar_target(wqp_ls, wqp_pull_ls %>%
+               TADA_AutoClean() %>%
+               filter(TADA.LatitudeMeasure < 47.3 & TADA.LongitudeMeasure < -90.0)), #remove LS data outside of western lobe
+  
+  #run all other recommended cleaning functions
+  tar_target(wqp_s1, bind_rows(wqp_trib, wqp_ls) %>%
+               TADA_AnalysisDataFilter(clean = TRUE, surface_water = TRUE) %>%
+               filter(!(ActivityMediaSubdivisionName %in% c("Surface Water Sediment", "Interstitial Water", "Drinking Water", "Stormwater", "Ambient Air", "Snowmelt"))) %>% #drops sediment samples from surface waters
+               TADA_RunKeyFlagFunctions() %>% #also drops ~160k NAs
+               TADA_FindPotentialDuplicatesSingleOrg() %>% 
+               TADA_FindPotentialDuplicatesMultipleOrgs(org_hierarchy = c("NARS_WQX", "NALMS")) %>%
+               filter(TADA.SingleOrgDup.Flag == 'Unique' & TADA.ResultSelectedMultipleOrgs == 'Y') %>% #drops ~800k duplicated temp records, spot checked and seemed to be accurate
+               TADA_FlagMeasureQualifierCode(clean = T) %>% 
+               TADA_SimpleCensoredMethods() %>% 
+               filter(TADA.CensoredData.Flag != "Detection condition is missing and required for censored data ID.") %>%
+               TADA_AutoFilter() %>% 
+               TADA_FlagDepthCategory()),
+  
+  #harmonizing parameters and removing unnecessary parameters
+  tar_target(wqp_s2, wqp_s1 %>% 
+               filter(TADA.CharacteristicName %in% unique(wqp_synref$TADA.CharacteristicName)) %>%
+               TADA_HarmonizeSynonyms(ref = wqp_synref) %>% 
+               filter(!(TADA.ComparableDataIdentifier %in% wqp_invalid_units)) %>%
+               mutate(TADA.ResultMeasureValue = wqp_fix_values(TADA.CharacteristicName,TADA.ResultMeasure.MeasureUnitCode, TADA.ResultMeasureValue),
+                      TADA.ResultMeasure.MeasureUnitCode = wqp_fix_units(TADA.CharacteristicName,TADA.ResultMeasure.MeasureUnitCode),
+                      TADA.CharacteristicName = if_else(TADA.CharacteristicName == "DISSOLVED OXYGEN (DO)" & TADA.ResultMeasure.MeasureUnitCode == "%", "DISSOLVED OXYGEN SATURATION", TADA.CharacteristicName)) %>%
+               TADA_CreateComparableID()),
+  
+  #relabel site types and remove inland lakes/wetlands/etc.
+  tar_target(wqp_s3, wqp_s2 %>%
+               mutate(MonitoringLocationTypeName = renameMonitType(MonitoringLocationTypeName,MonitoringLocationIdentifier)) %>%
+               filter(MonitoringLocationTypeName %in% c("Great Lake", "Estuary", "River/Stream"))),
+  # could potentially filter out River/Stream sites in hucs 04010201/04010202, since they drain into the estuary before the lake
+  # make sure everything is correctly labeled - remove filter above and then run:
+  # filter(wqp_s3, MonitoringLocationTypeName == "Great Lake") %>%
+  #   TADA_OverviewMap()
+  # filter(wqp_s3, MonitoringLocationTypeName == "Estuary") %>%
+  #   TADA_OverviewMap()
+  # filter(wqp_s3, MonitoringLocationTypeName == "River/Stream") %>%
+  #   TADA_OverviewMap()
+  # filter(wqp_s3, MonitoringLocationTypeName == "Lake") %>%
+  #   TADA_OverviewMap()
+
+  tar_target(wqp_long, wqp_s3 %>%
+               select(-all_of(wqp_drop_cols(wqp_s3))) %>%
+               TADA_RetainRequired()),
+  
+  tar_target(wqp_wide, wqp_long %>% 
+               filter(!(TADA.DepthCategory.Flag %in% c("Bottom", "Middle"))) %>% #assume surface if not specified
+               select(TADA.ComparableDataIdentifier, ActivityStartDate, TADA.ResultMeasureValue, OrganizationIdentifier, MonitoringLocationTypeName,
+                      TADA.MonitoringLocationIdentifier, TADA.LatitudeMeasure, TADA.LongitudeMeasure) %>% 
+               pivot_wider(names_from = TADA.ComparableDataIdentifier, values_from = TADA.ResultMeasureValue, values_fn = ~ mean(.x, na.rm = TRUE)) %>%
+               mutate(date = ymd(ActivityStartDate, tz = "America/Chicago"),
+                      nh3 = rowMeans(across(c(`AMMONIA_FILTERED_AS N_MG/L`, `AMMONIA_UNFILTERED_AS N_MG/L`)), na.rm = TRUE), #combining filtered and unfiltered parameters where they shouldn't be split (ions, mislabeled chl)
+                      nh3 = if_else(is.nan(nh3), NA, nh3),
+                      cl = rowMeans(across(c(`CHLORIDE_FILTERED_NA_MG/L`, `CHLORIDE_UNFILTERED_NA_MG/L`)), na.rm = TRUE),
+                      cl = if_else(is.nan(cl), NA, cl),
+                      chl = rowMeans(across(c(`CHLOROPHYLL A_UNFILTERED_NA_UG/L`, `CHLOROPHYLL A, UNCORRECTED FOR PHEOPHYTIN_UNFILTERED_NA_MG/L`, `CHLOROPHYLL A_FILTERED_NA_UG/L`, `CHLOROPHYLL A, UNCORRECTED FOR PHEOPHYTIN_FILTERED_NA_MG/L`))),
+                      chl = if_else(is.nan(chl), NA, chl),
+                      pheo = rowMeans(across(c(`PHEOPHYTIN A_FILTERED_NA_UG/L`, `PHEOPHYTIN A_UNFILTERED_NA_UG/L`)), na.rm = TRUE),
+                      pheo = if_else(is.nan(pheo), NA, pheo),
+                      no23 = rowMeans(across(c(`NITRATE + NITRITE_FILTERED_AS N_MG/L`, `NITRATE + NITRITE_UNFILTERED_AS N_MG/L`)), na.rm = TRUE),
+                      no23 = if_else(is.nan(no23), NA, no23),
+                      no3 = rowMeans(across(c(`NITRATE_FILTERED_AS N_MG/L`, `NITRATE_UNFILTERED_AS N_MG/L`)), na.rm = TRUE),
+                      no3 = if_else(is.nan(no3), NA, no3),
+                      no2 = rowMeans(across(c(`NITRITE_FILTERED_AS N_MG/L`, `NITRITE_UNFILTERED_AS N_MG/L`)), na.rm = TRUE),
+                      no2 = if_else(is.nan(no2), NA, no2),
+                      po4 = rowMeans(across(c(`ORTHOPHOSPHATE_FILTERED_AS P_MG/L`, `ORTHOPHOSPHATE_UNFILTERED_AS P_MG/L`)), na.rm = TRUE),
+                      po4 = if_else(is.nan(po4), NA, po4),
+                      si = rowMeans(across(c(`SILICA_FILTERED_AS SI_MG/L`, `SILICA_UNFILTERED_AS SI_MG/L`)), na.rm = TRUE),
+                      si = if_else(is.nan(si), NA, si),
+                      no23 = if_else(no3 > no23, no3, no23),
+                      no23 = if_else(is.na(no23) & !is.na(no3) & !is.na(no2), no3 + no2, no23),
+                      no23 = if_else(is.na(no23) & !is.na(no3) & is.na(no2), no3, no23),
+                      temp = if_else(`TEMPERATURE_NA_NA_DEG C` > -1 & `TEMPERATURE_NA_NA_DEG C` < 30, `TEMPERATURE_NA_NA_DEG C`, NA), # remove obviously wrong temp data
+                      do = if_else(`DISSOLVED OXYGEN (DO)_NA_NA_MG/L` > 0 & `DISSOLVED OXYGEN (DO)_NA_NA_MG/L` < 20, `DISSOLVED OXYGEN (DO)_NA_NA_MG/L`, NA), # remove obviously wrong/outlier do data
+                      do_sat = if_else(`DISSOLVED OXYGEN SATURATION_NA_NA_%` > 0 & `DISSOLVED OXYGEN SATURATION_NA_NA_%` < 140, `DISSOLVED OXYGEN SATURATION_NA_NA_%`, NA), # remove obviously wrong/outlier do data
+                      ph = if_else(`PH_NA_NA_NA` > 5 & `PH_NA_NA_NA` < 11, `PH_NA_NA_NA`, NA), # remove obviously wrong/outlier ph data
+                      cond = if_else(`CONDUCTIVITY_NA_NA_US/CM` > 10000, `CONDUCTIVITY_NA_NA_US/CM` * 0.001, `CONDUCTIVITY_NA_NA_US/CM`), # fixing obviously mislabeled cond units
+                      cond = if_else(cond > 2000, NA, cond),
+                      turb = if_else(`TURBIDITY_NA_NA_NTU` < 0, NA, `TURBIDITY_NA_NA_NTU`),
+                      trans_tube = if_else(`TRANSPARENCY, TUBE WITH DISK_NA_NA_IN` > 120, NA, `TURBIDITY_NA_NA_NTU`),
+                      secchi = `SECCHI DEPTH_NA_NA_M`,
+                      flow = if_else(`STREAM FLOW_NA_NA_CFS` < 0, NA, `STREAM FLOW_NA_NA_CFS`),
+                      tss = if_else(`TOTAL SUSPENDED SOLIDS_NON-FILTERABLE (PARTICLE)_NA_MG/L` < 0, NA, `TOTAL SUSPENDED SOLIDS_NON-FILTERABLE (PARTICLE)_NA_MG/L`),
+                      tds = if_else(`TOTAL DISSOLVED SOLIDS_FILTERED_NA_MG/L` > 0 & `TOTAL DISSOLVED SOLIDS_FILTERED_NA_MG/L` < 1000, `TOTAL DISSOLVED SOLIDS_FILTERED_NA_MG/L`, NA),
+                      toc = `ORGANIC CARBON_UNFILTERED_NA_MG/L`,
+                      doc = if_else(`ORGANIC CARBON_UNFILTERED_NA_MG/L` < `ORGANIC CARBON_FILTERED_NA_MG/L`, `ORGANIC CARBON_UNFILTERED_NA_MG/L`, `ORGANIC CARBON_FILTERED_NA_MG/L`), # if DOC is greater than TOC, set equal to TOC 
+                      ton = `ORGANIC NITROGEN_UNFILTERED_AS N_MG/L`,
+                      don = if_else(`ORGANIC NITROGEN_UNFILTERED_AS N_MG/L` < `ORGANIC NITROGEN_FILTERED_AS N_MG/L`, `ORGANIC NITROGEN_UNFILTERED_AS N_MG/L`, `ORGANIC NITROGEN_FILTERED_AS N_MG/L`), # if DON is greater than TON, set equal to TON 
+                      tkn = `TOTAL KJELDAHL NITROGEN (ORGANIC N & NH3)_UNFILTERED_AS N_MG/L`,
+                      tdkn = if_else(`TOTAL KJELDAHL NITROGEN (ORGANIC N & NH3)_UNFILTERED_AS N_MG/L` < `TOTAL KJELDAHL NITROGEN (ORGANIC N & NH3)_FILTERED_AS N_MG/L`, `TOTAL KJELDAHL NITROGEN (ORGANIC N & NH3)_UNFILTERED_AS N_MG/L`, `TOTAL KJELDAHL NITROGEN (ORGANIC N & NH3)_FILTERED_AS N_MG/L`),
+                      tn = `TOTAL NITROGEN, MIXED FORMS_UNFILTERED_AS N_MG/L`,
+                      tdn = if_else(`TOTAL NITROGEN, MIXED FORMS_UNFILTERED_AS N_MG/L` < `TOTAL NITROGEN, MIXED FORMS_FILTERED_AS N_MG/L`, `TOTAL NITROGEN, MIXED FORMS_UNFILTERED_AS N_MG/L`, `TOTAL NITROGEN, MIXED FORMS_FILTERED_AS N_MG/L`),  
+                      tp = `TOTAL PHOSPHORUS, MIXED FORMS_UNFILTERED_AS P_MG/L`,
+                      tdp = if_else(`TOTAL PHOSPHORUS, MIXED FORMS_UNFILTERED_AS P_MG/L` < `TOTAL PHOSPHORUS, MIXED FORMS_FILTERED_AS P_MG/L`, `TOTAL PHOSPHORUS, MIXED FORMS_UNFILTERED_AS P_MG/L`, `TOTAL PHOSPHORUS, MIXED FORMS_FILTERED_AS P_MG/L`)  
+               ) %>% 
+               select(date, source = OrganizationIdentifier, type = MonitoringLocationTypeName, site = TADA.MonitoringLocationIdentifier,
+                      latitude = TADA.LatitudeMeasure, longitude = TADA.LongitudeMeasure, temp, do, do_sat, ph, cond, turb, trans_tube, secchi, flow,
+                      tss, tds, chl, pheo, toc, doc, ton, don, tdkn, tkn, tdn, tn, nh3, no3 = no23, tdp, tp, po4, cl, si) %>% #note that were calling nitrate/nitrite no3
+               arrange(date) %>% 
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+  
+  
+  # making full files by type
   tar_target(lake_full, dnr %>%
                bind_rows(filter(umd, type == "Lake")) %>% 
-               select(date, site, source, depth, chl, chl_field, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)
-                      doc, poc, tn, tdn, pon, no3, nh3, tp, tdp, pp, po4, si, phyco) %>% 
+               bind_rows(cbnut_clean) %>% 
+               bind_rows(filter(wqp_wide, type == "Great Lake")) %>%
+               mutate(chl = rowMeans(across(c(chl, chl_field)), na.rm = TRUE), #combine chl and chl_field
+                      chl = if_else(is.nan(chl), NA, chl)) %>% 
+               select(date, site, source, depth, chl, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)
+                      doc, poc, toc, tn, tdn, ton, don, pon, no3, nh3, tp, tdp, pp, po4, si, cl) %>% 
                arrange(date)),
   
   tar_target(trib_full, filter(umd, type == "Watershed") %>% 
-               select(date, site, source, depth, chl, tss, # reorder, drop station and type (all lake)
-                      doc, poc, tdn, pon, no3, nh3, tp, tdp, pp, po4, si, phyco) %>% 
+               bind_rows(filter(wqp_wide, type == "River/Stream")) %>%
+               select(date, site, source, depth, flow, chl, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)
+                      doc, poc, toc, tn, tdn, ton, don, pon, no3, nh3, tp, tdp, pp, po4, si, cl) %>% 
                arrange(date)),
-  tar_target(est_full, lsnerr %>% 
-               select(date, site, source, depth, chl, chl_field, tss, turb, cond, ph, temp, do, do_sat,
-                      tn, no3, no2, nh3, din, tp, po4, si) %>% 
+  
+  tar_target(est_full, lsnerr %>%
+               bind_rows(filter(wqp_wide, type == "Estuary")) %>% 
+               mutate(chl = rowMeans(across(c(chl, chl_field)), na.rm = TRUE), #combine chl and chl_field
+                      chl = if_else(is.nan(chl), NA, chl)) %>%
+               select(date, site, source, depth, flow, chl, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)
+                      doc, toc, tn, tdn, ton, don, no3, nh3, tp, tdp, po4, si, cl) %>% 
                arrange(date))
   
 )

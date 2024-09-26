@@ -1,0 +1,143 @@
+---
+title: "CB Data Summary"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(targets)
+library(tidyverse)
+library(plotly)
+library(DT)
+library(gganimate)
+library(sf)
+library(Hmisc)
+library(corrplot)
+library(randomForest)
+library(randomForestExplainer)
+
+ls_crop <- st_crop(tar_read(ls_shp, store = "../_targets"), st_bbox(c(xmin = -91.1, ymin = 46.4, xmax = -90.6, ymax = 46.9)))
+lake <- tar_read(cbnut_clean, store = "../_targets")
+
+lake_corr <- select(lake, -c(date, site, source, type)) %>% 
+      st_drop_geometry()
+lake_cor <- rcorr(as.matrix(lake_corr), type = 'spearman')
+lake_cor$P[is.na(lake_cor$P)] <- 1
+
+lake_rf_prep1 <- lake %>% 
+  st_drop_geometry() %>%
+  mutate(month = month(date)) %>% 
+  select(month, tp, po4, tss, temp, do_sat, ph, cond, chl) %>% 
+  mutate(month = as.factor(month)) %>% 
+  na.omit()
+lake_rf1 <- randomForest(chl ~ ., data = lake_rf_prep1, importance = TRUE, ntree = 1000)
+lake_rf_prep2 <- lake %>% 
+  st_drop_geometry() %>%
+  mutate(month = month(date)) %>% 
+  select(month, pp, tdp, nh3, no3, tp, po4, tss, temp, do_sat, ph, cond, chl) %>% 
+  mutate(month = as.factor(month)) %>% 
+  na.omit()
+lake_rf2 <- randomForest(chl ~ ., data = lake_rf_prep2, importance = TRUE, ntree = 1000)
+
+```
+
+
+## Correlations between variables
+
+Here's a plot showing spearman correlation coefficients between variables. Bigger size/darker color means a stronger correlation. Only correlations with P < 0.05 are shown.
+
+#### Lake Superior
+```{r lake_corr, echo=FALSE, error=TRUE}
+corrplot(lake_cor$r, type = "lower", tl.cex = .5, p.mat = lake_cor$P, sig.level = 0.05, insig = 'blank', outline = T)
+```
+
+
+
+## Variable Importance (random forest)
+#### more limited parameters, more observations (760)
+```{r rf_lake1, echo=FALSE}
+importance <- measure_importance(lake_rf1) %>%
+  mutate(mse_increase = round(mse_increase, 3),
+         mean_min_depth = round(mean_min_depth, 2),
+         node_purity_increase = round(node_purity_increase, 2)) %>%
+  select(-c(p_value, no_of_trees))
+datatable(importance)
+```
+
+#### more parameters, fewer observations (130)
+```{r rf_lake2, echo=FALSE}
+importance <- measure_importance(lake_rf2) %>%
+  mutate(mse_increase = round(mse_increase, 3),
+         mean_min_depth = round(mean_min_depth, 2),
+         node_purity_increase = round(node_purity_increase, 2)) %>%
+  select(-c(p_value, no_of_trees))
+datatable(importance)
+```
+
+## Plots of Chlorophyll vs everything else
+#### In CB
+```{r chlplots, echo=FALSE}
+
+ggplotly(lake %>%
+  ggplot(aes(x = no3, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = nh3, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = pon, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = po4, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = tdp, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = pp, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = tp, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = poc, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = tss, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = temp, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = do_sat, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = ph, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = cond, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = turb, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+      mutate(month = as_factor(month(date))) %>%      
+  ggplot(aes(x = month, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+```
+
+
+## Maps!
+
+```{r mapchl, echo=FALSE, fig.height=6}
+plotchl <-  ggplot() +
+               theme_bw() +
+               geom_sf(data = ls_crop) +
+               geom_sf(data = filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 20, NA, chl)), mapping = aes(color = chl), size = 7) +
+               scale_color_gradient(low = "#d7f4cb", high = "darkgreen", na.value = "gray30") +
+               transition_states(date) +
+               labs(title = "CHL on Week of {closest_state}")
+animate(plotchl, nframes = length(unique(lake$date)), fps = 2)
+```

@@ -124,7 +124,7 @@ plotchl <-  ggplot() +
                geom_sf(data = chlplotdata, mapping = aes(color = chl), size = 7) +
                scale_color_gradient(low = "#d7f4cb", high = "darkgreen", na.value = "gray30") +
                transition_states(date) +
-               labs(title = "CHL on Week of {closest_state}")
+               labs(title = "CHL on {closest_state}")
 animate(plotchl, nframes = length(unique(chlplotdata$date)), fps = 4)
 ```
 ```{r maptss, echo=FALSE, fig.height=2}

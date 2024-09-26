@@ -1,4 +1,4 @@
-TADA.CharacteristicName,Target.TADA.CharacteristicName,TADA.CharacteristicNameAssumptions,TADA.ResultSampleFractionText,Target.TADA.ResultSampleFractionText,TADA.FractionAssumptions,TADA.MethodSpeciationName,Target.TADA.MethodSpeciationName,TADA.SpeciationAssumptions,Target.TADA.SpeciationConversionFactor,HarmonizationGroup
+﻿TADA.CharacteristicName,Target.TADA.CharacteristicName,TADA.CharacteristicNameAssumptions,TADA.ResultSampleFractionText,Target.TADA.ResultSampleFractionText,TADA.FractionAssumptions,TADA.MethodSpeciationName,Target.TADA.MethodSpeciationName,TADA.SpeciationAssumptions,Target.TADA.SpeciationConversionFactor,HarmonizationGroup
 AMMONIA,,,DISSOLVED,FILTERED,Assumes DISSOLVED and TOTAL SOLUBLE are equivalent to FILTERED. FILTERED is precise and preferred.,AS NH3,AS N,Converts speciation and result values from AS NH3 to AS N,0.822,Nitrogen
 AMMONIA,,,DISSOLVED,FILTERED,Assumes DISSOLVED and TOTAL SOLUBLE are equivalent to FILTERED. FILTERED is precise and preferred.,,AS N,Assumes original speciation for AMMONIA is AS NH3 and converts to AS N,0.822,Nitrogen
 AMMONIA,,,"FILTERED, FIELD",FILTERED,"Assumes FILTERED, LAB and FILTERED, FIELD are equivalent to FILTERABLE and FILTERED. FILTERED is precise and preferred.",AS N,,,,Nitrogen
@@ -102,6 +102,13 @@ PHOSPHORUS,"TOTAL PHOSPHORUS, MIXED FORMS","Assumes PHOSPHORUS is synonymous to 
 PHOSPHORUS,"TOTAL PHOSPHORUS, MIXED FORMS","Assumes PHOSPHORUS is synonymous to TOTAL PHOSPHORUS, MIXED FORMS.",TOTAL,UNFILTERED,"Assumes PHOSPHORUS, TOTAL is synonymous to TOTAL PHOSPHORUS, MIXED FORMS, UNFILTERED",AS P,,,,Phosphorus
 PHOSPHORUS,"TOTAL PHOSPHORUS, MIXED FORMS","Assumes PHOSPHORUS is synonymous to TOTAL PHOSPHORUS, MIXED FORMS.",TOTAL,UNFILTERED,"Assumes PHOSPHORUS, TOTAL is synonymous to TOTAL PHOSPHORUS, MIXED FORMS, UNFILTERED",,AS P,Assumes AS P,,Phosphorus
 PHOSPHORUS,"TOTAL PHOSPHORUS, MIXED FORMS","Assumes PHOSPHORUS is synonymous to TOTAL PHOSPHORUS, MIXED FORMS.",UNFILTERED,,,AS P,,,,Phosphorus
+SILICA,,,DISSOLVED,FILTERED,Assumes DISSOLVED and TOTAL SOLUBLE are equivalent to FILTERED. FILTERED is precise and preferred.,AS SI,,,,Silica
+SILICA,,,DISSOLVED,FILTERED,Assumes DISSOLVED and TOTAL SOLUBLE are equivalent to FILTERED. FILTERED is precise and preferred.,AS SIO2,AS SI,Converts speciation and result values from AS SIO2 to AS SI,0.467,Silica
+SILICA,,,DISSOLVED,FILTERED,Assumes DISSOLVED and TOTAL SOLUBLE are equivalent to FILTERED. FILTERED is precise and preferred.,,AS SI,Assumes AS SI,,Silica
+SILICA,,,TOTAL,UNFILTERED,Assumes TOTAL  and unspecified is synonymous to UNFILTERED,,AS SI,Assumes AS SI,,Silica
+SILICA,,,,UNFILTERED,Assumes TOTAL  and unspecified is synonymous to UNFILTERED,,AS SI,Assumes AS SI,,Silica
+SILICON,SILICA,,DISSOLVED,FILTERED,Assumes DISSOLVED and TOTAL SOLUBLE are equivalent to FILTERED. FILTERED is precise and preferred.,,AS SI,Assumes AS SI,,Silica
+SILICON,SILICA,,TOTAL,UNFILTERED,Assumes TOTAL  and unspecified is synonymous to UNFILTERED,,AS SI,Assumes AS SI,,Silica
 SOLUBLE REACTIVE PHOSPHORUS (SRP),ORTHOPHOSPHATE,,DISSOLVED,FILTERED,,,AS P,Assumes AS P,,Phosphorus
 SOLUBLE REACTIVE PHOSPHORUS (SRP),ORTHOPHOSPHATE,,TOTAL,FILTERED,"Assumes SOLUBLE REACTIVE PHOSPHORUS (SRP) is synonymous with TOTAL PHOSPHORUS, MIXED FORMS, FILTERED",AS P,,,,Phosphorus
 SOLUBLE REACTIVE PHOSPHORUS (SRP),ORTHOPHOSPHATE,,TOTAL,FILTERED,,,AS P,Assumes AS P,,Phosphorus

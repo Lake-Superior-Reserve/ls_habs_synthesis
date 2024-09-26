@@ -21,18 +21,18 @@ library(randomForestExplainer)
 ls_crop <- tar_read(ls_crop, store = "../_targets")
 lake <- tar_read(lake_full, store = "../_targets")
 
-lake_corr <- select(lake, -c(date, site, source, depth, chl_field)) %>% 
+lake_corr <- select(lake, -c(date, site, source, depth)) %>% 
       st_drop_geometry()
 lake_cor <- rcorr(as.matrix(lake_corr), type = 'spearman')
 lake_cor$P[is.na(lake_cor$P)] <- 1
 
-lake_rf_prep <- lake %>% 
-  st_drop_geometry() %>%
-  mutate(month = month(date)) %>% 
-  select(month, no3, nh3, tp, po4, tss, chl) %>% 
-  mutate(month = as.factor(month)) %>% 
-  na.omit()
-lake_rf <- randomForest(chl ~ ., data = lake_rf_prep, importance = TRUE, ntree = 1000)
+# lake_rf_prep <- lake %>% 
+#   st_drop_geometry() %>%
+#   mutate(month = month(date)) %>% 
+#   select(month, no3, nh3, tp, po4, tss, chl) %>% 
+#   mutate(month = as.factor(month)) %>% 
+#   na.omit()
+# lake_rf <- randomForest(chl ~ ., data = lake_rf_prep, importance = TRUE, ntree = 1000)
 
 ```
 
@@ -42,7 +42,7 @@ lake_rf <- randomForest(chl ~ ., data = lake_rf_prep, importance = TRUE, ntree =
 Here's a plot showing spearman correlation coefficients between variables. Bigger size/darker color means a stronger correlation. Only correlations with P < 0.05 are shown.
 
 #### Lake Superior
-```{r lake_corr, echo=FALSE}
+```{r lake_corr, echo=FALSE, error=TRUE}
 corrplot(lake_cor$r, type = "lower", tl.cex = .5, p.mat = lake_cor$P, sig.level = 0.05, insig = 'blank', outline = T)
 ```
 
@@ -52,14 +52,14 @@ corrplot(lake_cor$r, type = "lower", tl.cex = .5, p.mat = lake_cor$P, sig.level 
 Just in case you aren't familiar, random forest models involve making a bunch a decision trees based on random subsets of a dataset. Looking at the common themes among different trees can help you understand trends in the data.
 These tables show various measures of importance of variables to each model. With the exception of mean_min_depth, a higher value means the variable is more important. MSE increase is the measure I put the most weight in, since it actually measures the importance of the variable to predict chl a, whereas others tell you more about how integral the variable is to the model itself. Mean min depth is the mean level of the decision tree the variable appears at, number of nodes is the total number nodes that use the variable across all trees (1000), node purity increase is measures how often a node with that variable leads to a single outcome, and number of times a root is just how often that variable was the base of a tree.
 
-#### Lake Superior
+#### Lake Superior - not currently run because there are too few rows with consistent data
 ```{r rf_lake, echo=FALSE}
-importance <- measure_importance(lake_rf) %>% 
-  mutate(mse_increase = round(mse_increase, 3),
-         mean_min_depth = round(mean_min_depth, 2),
-         node_purity_increase = round(node_purity_increase, 2)) %>% 
-  select(-c(p_value, no_of_trees))
-datatable(importance)
+# importance <- measure_importance(lake_rf) %>% 
+#   mutate(mse_increase = round(mse_increase, 3),
+#          mean_min_depth = round(mean_min_depth, 2),
+#          node_purity_increase = round(node_purity_increase, 2)) %>% 
+#   select(-c(p_value, no_of_trees))
+# datatable(importance)
 ```
 
 ## Plots of Chlorophyll vs everything else
@@ -91,7 +91,7 @@ ggplotly(lake %>%
   ggplot(aes(x = tp, y = chl, text = str_c(site, date, sep = " "))) +
   geom_point())
 ggplotly(lake %>%
-  ggplot(aes(x = srsi, y = chl, text = str_c(site, date, sep = " "))) +
+  ggplot(aes(x = si, y = chl, text = str_c(site, date, sep = " "))) +
   geom_point())
 ggplotly(lake %>% 
   ggplot(aes(x = doc, y = chl, text = str_c(site, date, sep = " "))) +
@@ -115,7 +115,7 @@ ggplotly(lake %>%
 plotchl <-  ggplot() +
                theme_bw() +
                geom_sf(data = ls_crop) +
-               geom_sf(data = filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 50, NA, chl)), mapping = aes(color = chl), size = 7) +
+               geom_sf(data = filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 20, NA, chl)), mapping = aes(color = chl), size = 7) +
                scale_color_gradient(low = "#d7f4cb", high = "darkgreen", na.value = "gray30") +
                transition_states(date) +
                labs(title = "CHL on Week of {closest_state}")
