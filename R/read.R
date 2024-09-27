@@ -14,6 +14,10 @@ s1_targets <- list(
     return(select(df, -all_of(na_cols)))
   }),
   
+  tar_target(replace_nan, function(val){
+    return(if_else(is.nan(val), NA, val))
+  }),
+  
   tar_target(dnr_rename, Vectorize(function(param) {
     if (param == "530") return("tss")
     else if (param == "600") return("tn")
@@ -325,7 +329,8 @@ s1_targets <- list(
                          chl = mean(Chl, na.rm = T), chl_filt = mean(Chl2, na.rm = T), phyco = mean(Phyco, na.rm = T), tss = mean(TSS, na.rm = T)) %>% 
                mutate(si = si * .001 * 28.086, doc = doc * .001 * 12.011, poc = poc * .001 * 12.011, poc_filt = poc_filt * .001 * 12.011, #converting units from to umol/L to mg/L by converting to mmol/L then multiplying by molar mass
                       no3 = no3 * .001 * 14.007, nh3 = nh3 * .001 * 14.007, tdn = tdn * .001 * 14.007, pon = pon * .001 * 14.007, pon_filt = pon_filt * .001 * 14.007,
-                      po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974) %>% 
+                      po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974,
+                      toc = poc + doc) %>% 
                rename(date = Date, site = Site)),
   tar_target(umd_2123_clean, umd_2123 %>% 
                mutate(Date = ymd(Date, tz = "America/Chicago"),
@@ -340,10 +345,12 @@ s1_targets <- list(
                          tss = mean(TSS, na.rm = T)) %>% 
                mutate(si = si * .001 * 28.086, doc = doc * .001 * 12.011, poc = poc * .001 * 12.011,  #converting units from to umol/L to mg/L by converting to mmol/L then multiplying by molar mass
                       no3 = no3 * .001 * 14.007, nh3 = nh3 * .001 * 14.007, tdn = tdn * .001 * 14.007, pon = pon * .001 * 14.007, 
-                      po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974) %>% 
+                      po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974,
+                      toc = poc + doc) %>% 
                rename(date = Date, site = Site)),
   
-  tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>% 
+  tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>%
+               mutate(across(-c(source, type, site, depth, latitude, longitude), replace_nan)) %>% 
                st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
   
   #ncbc cleaning
@@ -500,23 +507,15 @@ s1_targets <- list(
                pivot_wider(names_from = TADA.ComparableDataIdentifier, values_from = TADA.ResultMeasureValue, values_fn = ~ mean(.x, na.rm = TRUE)) %>%
                mutate(date = ymd(ActivityStartDate, tz = "America/Chicago"),
                       nh3 = rowMeans(across(c(`AMMONIA_FILTERED_AS N_MG/L`, `AMMONIA_UNFILTERED_AS N_MG/L`)), na.rm = TRUE), #combining filtered and unfiltered parameters where they shouldn't be split (ions, mislabeled chl)
-                      nh3 = if_else(is.nan(nh3), NA, nh3),
                       cl = rowMeans(across(c(`CHLORIDE_FILTERED_NA_MG/L`, `CHLORIDE_UNFILTERED_NA_MG/L`)), na.rm = TRUE),
-                      cl = if_else(is.nan(cl), NA, cl),
                       chl = rowMeans(across(c(`CHLOROPHYLL A_UNFILTERED_NA_UG/L`, `CHLOROPHYLL A, UNCORRECTED FOR PHEOPHYTIN_UNFILTERED_NA_MG/L`, `CHLOROPHYLL A_FILTERED_NA_UG/L`, `CHLOROPHYLL A, UNCORRECTED FOR PHEOPHYTIN_FILTERED_NA_MG/L`))),
-                      chl = if_else(is.nan(chl), NA, chl),
                       pheo = rowMeans(across(c(`PHEOPHYTIN A_FILTERED_NA_UG/L`, `PHEOPHYTIN A_UNFILTERED_NA_UG/L`)), na.rm = TRUE),
-                      pheo = if_else(is.nan(pheo), NA, pheo),
                       no23 = rowMeans(across(c(`NITRATE + NITRITE_FILTERED_AS N_MG/L`, `NITRATE + NITRITE_UNFILTERED_AS N_MG/L`)), na.rm = TRUE),
-                      no23 = if_else(is.nan(no23), NA, no23),
                       no3 = rowMeans(across(c(`NITRATE_FILTERED_AS N_MG/L`, `NITRATE_UNFILTERED_AS N_MG/L`)), na.rm = TRUE),
-                      no3 = if_else(is.nan(no3), NA, no3),
                       no2 = rowMeans(across(c(`NITRITE_FILTERED_AS N_MG/L`, `NITRITE_UNFILTERED_AS N_MG/L`)), na.rm = TRUE),
-                      no2 = if_else(is.nan(no2), NA, no2),
                       po4 = rowMeans(across(c(`ORTHOPHOSPHATE_FILTERED_AS P_MG/L`, `ORTHOPHOSPHATE_UNFILTERED_AS P_MG/L`)), na.rm = TRUE),
-                      po4 = if_else(is.nan(po4), NA, po4),
                       si = rowMeans(across(c(`SILICA_FILTERED_AS SI_MG/L`, `SILICA_UNFILTERED_AS SI_MG/L`)), na.rm = TRUE),
-                      si = if_else(is.nan(si), NA, si),
+                      across(c(nh3, cl, chl, pheo, no23, no3, no2, po4, si), replace_nan),
                       no23 = if_else(no3 > no23, no3, no23),
                       no23 = if_else(is.na(no23) & !is.na(no3) & !is.na(no2), no3 + no2, no23),
                       no23 = if_else(is.na(no23) & !is.na(no3) & is.na(no2), no3, no23),
@@ -546,6 +545,7 @@ s1_targets <- list(
                select(date, source = OrganizationIdentifier, type = MonitoringLocationTypeName, site = TADA.MonitoringLocationIdentifier,
                       latitude = TADA.LatitudeMeasure, longitude = TADA.LongitudeMeasure, temp, do, do_sat, ph, cond, turb, trans_tube, secchi, flow,
                       tss, tds, chl, pheo, toc, doc, ton, don, tdkn, tkn, tdn, tn, nh3, no3 = no23, tdp, tp, po4, cl, si) %>% #note that were calling nitrate/nitrite no3
+               filter(!if_all(-c(date, source, type, site, latitude, longitude, temp), is.na)) %>% # drop rows with only temp
                arrange(date) %>% 
                st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
   

@@ -60,9 +60,10 @@ ggplotly(plot)
 
 Any guesses on why this might be happening? I'm currently not dropping any of these suspicious values, but I'm leaning towards dropping the ph and conductivity values and potentially adjusting down all of the 2023 DO values.
 
-## Comparison with LSNERR DO values
+### Comparison with LSNERR DO values
 ```{r lsnerr_do, echo = FALSE}
 lsnerr <- tar_read(lsnerr, store = "../_targets") %>% 
+  bind_rows(dnr) %>% 
   filter(date > ymd("2018-12-31"))
 plot <- lsnerr %>% 
   mutate(year = year(date),
@@ -83,11 +84,38 @@ plot <- lsnerr %>%
   geom_point(aes(x = do, y = do_sat, color = year, label = date))
 ggplotly(plot)
 plot <- lsnerr %>% 
+  mutate(year = year(date),
+         year = as_factor(year),
+         day = yday(date)) %>%
   ggplot() + 
-  geom_point(aes(x = date, y = do_sat, label = site))
+  geom_point(aes(x = day, y = do, color = year, label = site))
 ggplotly(plot)
 plot <- lsnerr %>% 
+  mutate(year = year(date),
+         year = as_factor(year),
+         day = yday(date)) %>%
   ggplot() + 
-  geom_point(aes(x = date, y = do, label = site))
+  geom_point(aes(x = day, y = do_sat, color = year, label = site))
+ggplotly(plot)
+```
+
+#### Comparison with all Lake Superior measurements
+```{r lake_comp, echo=FALSE}
+lake <- tar_read(lake_full, store = "../_targets") %>% 
+  filter(date > ymd("2018-12-31"))
+plot <- lake %>% 
+  mutate(year = year(date),
+         year = as_factor(year),
+         day = yday(date)) %>% 
+  ggplot() + 
+  geom_point(aes(x = day, y = do, color = year, label = source))
+ggplotly(plot) 
+
+plot <- lake %>% 
+  mutate(year = year(date),
+         year = as_factor(year),
+         day = yday(date)) %>% 
+  ggplot() + 
+  geom_point(aes(x = day, y = do_sat, color = year, label = source))
 ggplotly(plot)
 ```
