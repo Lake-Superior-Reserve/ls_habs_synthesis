@@ -1,0 +1,220 @@
+---
+title: "LSNERR Data Summary"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(targets)
+library(tidyverse)
+library(plotly)
+library(DT)
+library(gganimate)
+library(sf)
+library(Hmisc)
+library(corrplot)
+library(randomForest)
+library(randomForestExplainer)
+
+lake <- tar_read(est_full, store = "../_targets") 
+ls_crop_lsnerr <- st_crop(tar_read(ls_shp, store = "../_targets"), st_bbox(c(xmin = -92.4, ymin = 46.6, xmax = -91.9, ymax = 46.8)))
+
+
+lake_corr <- select(lake, -c(date, site, source, depth, flow)) %>% 
+      st_drop_geometry()
+lake_cor <- rcorr(as.matrix(lake_corr), type = 'spearman')
+lake_cor$P[is.na(lake_cor$P)] <- 1
+
+lake_rf_prep <- lake %>% 
+               st_drop_geometry() %>%
+               ungroup() %>% 
+               mutate(month = month(date)) %>% 
+               select(month, no3, nh3, tn, tp, po4, temp, do, cond, ph, chl) %>% 
+               mutate(month = as.factor(month)) %>% 
+               na.omit()
+lake_rf <- randomForest(chl ~ ., data = lake_rf_prep, importance = TRUE, ntree = 1000)
+
+```
+
+
+## Correlations between variables
+
+Here's a plot showing spearman correlation coefficients between variables. Bigger size/darker color means a stronger correlation. Only correlations with P < 0.05 are shown.
+
+```{r lake_corr, echo=FALSE, error=TRUE}
+corrplot(lake_cor$r, type = "lower", tl.cex = .5, p.mat = lake_cor$P, sig.level = 0.05, insig = 'blank', outline = T)
+```
+
+
+## Variable Importance (random forest)
+Just in case you aren't familiar, random forest models involve making a bunch a decision trees based on random subsets of a dataset. Looking at the common themes among different trees can help you understand trends in the data.
+These tables show various measures of importance of variables to each model. With the exception of mean_min_depth, a higher value means the variable is more important. MSE increase is the measure I put the most weight in, since it actually measures the importance of the variable to predict chl a, whereas others tell you more about how integral the variable is to the model itself. Mean min depth is the mean level of the decision tree the variable appears at, number of nodes is the total number nodes that use the variable across all trees (1000), node purity increase is measures how often a node with that variable leads to a single outcome, and number of times a root is just how often that variable was the base of a tree.
+
+#### Superior Bay
+```{r rf_lake, echo=FALSE}
+importance <- measure_importance(lake_rf) %>% 
+  mutate(mse_increase = round(mse_increase, 3),
+         mean_min_depth = round(mean_min_depth, 2),
+         node_purity_increase = round(node_purity_increase, 2)) %>% 
+  select(-c(p_value, no_of_trees))
+datatable(importance)
+```
+
+## Plots of Chlorophyll vs everything else
+#### In Superior Bay
+```{r chlplots, echo=FALSE}
+ggplotly(lake %>%
+  ggplot(aes(x = tss, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = tp, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = po4, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = tn, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = no3, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = no2, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x =nh3, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = din, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>% 
+  ggplot(aes(x = si, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = temp, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = do_sat, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = cond, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = ph, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+  ggplot(aes(x = turb, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
+      mutate(month = factor(month(date), levels = c(1,2,3,4,5,6,7,8,9,10,11,12))) %>%      
+  ggplot(aes(x = month, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+```
+
+
+## Maps!
+
+```{r mapchl, echo=FALSE, fig.height=6}
+chlplotdata <- filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 80, NA, chl))
+plotchl <-  ggplot() +
+               theme_bw() +
+               geom_sf(data = ls_crop_lsnerr) +
+               geom_sf(data = chlplotdata, mapping = aes(color = chl), size = 7) +
+               scale_color_gradient(low = "#d7f4cb", high = "darkgreen", na.value = "gray30") +
+               transition_states(date) +
+               labs(title = "CHL on {closest_state}")
+animate(plotchl, nframes = length(unique(chlplotdata$date)), fps = 4)
+```
+```{r maptss, echo=FALSE, fig.height=2}
+# plottss <-  ggplot() +
+#                theme_bw() +
+#                geom_sf(data = ls_crop) +
+#                geom_sf(data = filter(umd, !is.na(tss)), mapping = aes(color = tss), size = 7) +
+#                scale_color_gradient(low = "lightblue", high = "tan4") +
+#                transition_states(date) +
+#                labs(title = "TSS on Week of {closest_state}")
+# animate(plottss, nframes = length(unique(lake$date)), fps = 2)
+```
+```{r maptp, echo=FALSE, fig.height=2}
+# plottp <-  ggplot() +
+#                theme_bw() +
+#                geom_sf(data = ls_crop) +
+#                geom_sf(data = filter(lake, !is.na(tp)), mapping = aes(color = tp), size = 7) +
+#                scale_color_gradient(low = "lightblue", high = "darkblue") +
+#                transition_states(date) +
+#                labs(title = "TP on Week of {closest_state}")
+# animate(plottp, nframes = length(unique(lake$date)), fps = 1)
+```
+```{r maptn, echo=FALSE, fig.height=2}
+# plottn <-  ggplot() +
+#                theme_bw() +
+#                geom_sf(data = ls_crop) +
+#                geom_sf(data = filter(lake, !is.na(tn)), mapping = aes(color = tn), size = 7) +
+#                scale_color_gradient(low = "lightblue", high = "darkblue") +
+#                transition_states(date) +
+#                labs(title = "TN on Week of {closest_state}")
+# animate(plottn, nframes = length(unique(lake$date)), fps = 1)
+```
+```{r mapno3, echo=FALSE, fig.height=2}
+# plotno3 <-  ggplot() +
+#                theme_bw() +
+#                geom_sf(data = ls_crop) +
+#                geom_sf(data = filter(lake, !is.na(no3)), mapping = aes(color = no3), size = 7) +
+#                scale_color_gradient(low = "lightblue", high = "darkblue") +
+#                transition_states(date) +
+#                labs(title = "NO3 on Week of {closest_state}")
+# animate(plotno3, nframes = length(unique(lake$date)), fps = 1)
+```
+```{r mapturb, echo=FALSE, fig.height=2}
+# plotturb <-  ggplot() +
+#                theme_bw() +
+#                geom_sf(data = ls_crop) +
+#                geom_sf(data = filter(lake, !is.na(turb)), mapping = aes(color = turb), size = 7) +
+#                scale_color_gradient(low = "lightblue", high = "tan4") +
+#                transition_states(date) +
+#                labs(title = "Turbidity on Week of {closest_state}")
+# animate(plotturb, nframes = length(unique(lake$date)), fps = 1)
+```
+```{r mapcond, echo=FALSE, fig.height=2}
+# plotcond <-  ggplot() +
+#                theme_bw() +
+#                geom_sf(data = ls_crop) +
+#                geom_sf(data = filter(lake, !is.na(cond)), mapping = aes(color = cond), size = 7) +
+#                scale_color_gradient(low = "lightblue", high = "darkblue") +
+#                transition_states(date) +
+#                labs(title = "Conductivity on Week of {closest_state}")
+# animate(plotcond, nframes = length(unique(lake$date)), fps = 1)
+```
+```{r mapph, echo=FALSE, fig.height=2}
+# plotph <-  ggplot() +
+#                theme_bw() +
+#                geom_sf(data = ls_crop) +
+#                geom_sf(data = filter(lake, !is.na(ph)), mapping = aes(color = ph), size = 7) +
+#                scale_color_gradient(low = "lightblue", high = "darkblue") +
+#                transition_states(date) +
+#                labs(title = "pH on Week of {closest_state}")
+# animate(plotph, nframes = length(unique(lake$date)), fps = 1)
+```
+```{r mapdo, echo=FALSE, fig.height=2}
+# plotdo <-  ggplot() +
+#                theme_bw() +
+#                geom_sf(data = ls_crop) +
+#                geom_sf(data = filter(lake, !is.na(do)), mapping = aes(color = do), size = 7) +
+#                scale_color_gradient(low = "lightblue", high = "darkblue") +
+#                transition_states(date) +
+#                labs(title = "DO on Week of {closest_state}")
+# animate(plotdo, nframes = length(unique(lake$date)), fps = 1)
+```
+```{r maptemp, echo=FALSE, fig.height=2}
+# plottemp <-  ggplot() +
+#                theme_bw() +
+#                geom_sf(data = ls_crop) +
+#                geom_sf(data = filter(lake, !is.na(temp)), mapping = aes(color = temp), size = 7) +
+#                scale_color_gradient(low = "lightblue", high = "indianred2") +
+#                transition_states(date) +
+#                labs(title = "Temperature on Week of {closest_state}")
+# animate(plottemp, nframes = length(unique(lake$date)), fps = 1)
+```
+

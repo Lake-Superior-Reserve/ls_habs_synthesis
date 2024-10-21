@@ -19,7 +19,14 @@ s1_targets <- list(
   }),
   
   tar_target(dnr_rename, Vectorize(function(param) {
-    if (param == "530") return("tss")
+    if (is.na(param)) return(NA)
+    else if (param == "10") return("temp")
+    else if (param == "94") return("cond")
+    else if (param == "95") return("cond")
+    else if (param == "300") return("do")
+    else if (param == "301") return("do_sat")
+    else if (param == "400") return("ph")
+    else if (param == "530") return("tss")
     else if (param == "600") return("tn")
     else if (param == "608") return("nh3")
     else if (param == "625") return("tkn")
@@ -27,8 +34,13 @@ s1_targets <- list(
     else if (param == "665") return("tp")
     else if (param == "671") return("po4")
     else if (param == "681") return("doc")
+    else if (param == "940") return("cl")
+    else if (param == "955") return("si")
+    else if (param == "61190") return("trans_tube")
+    else if (param == "82079") return("turb")
+    else if (param == "99530") return("tss")
     else if (param == "99717") return("chl")
-    else return(param)
+    else return(NA)
   })),
   
   tar_target(dnr_fix_dates, Vectorize(function(station, date) {
@@ -75,7 +87,14 @@ s1_targets <- list(
   tar_target(umd_1721_file, "raw_data/umd/SouthShoreArchive.csv", format = "file"),
   tar_target(umd_2123_file, "raw_data/umd/SouthShoreArchive2021to2023.csv", format = "file"),
   
-  tar_target(cbnut_file, "raw_data/ncbc/Compiled_Bay_Data_2014-2022.xlsx"),
+  tar_target(umd20_troll_file, "raw_data/umd/2020/Troll 2020.xlsx", format = "file"),
+  
+  tar_target(nps16_sonde_file, "raw_data/nps/Apostle Islands Sonde Data.csv", format = "file"),
+  tar_target(nps_sonde_file, "raw_data/nps/sonde.csv", format = "file"),
+  tar_target(nps_chem_file, "raw_data/nps/Apostle Islands Water Chemistry.csv", format = "file"),
+  tar_target(nps_wetlab_file, "raw_data/nps/wetlab.csv", format = "file"),
+  
+  tar_target(cbnut_file, "raw_data/ncbc/Compiled_Bay_Data_2014-2022.xlsx", format = "file"),
   
   tar_target(lksnut12_file, "raw_data/lsnerr/lksnut/lksnut2012.csv", format = "file"),
   tar_target(lksnut13_file, "raw_data/lsnerr/lksnut/lksnut2013.csv", format = "file"),
@@ -99,6 +118,26 @@ s1_targets <- list(
     }
     return(lkswq[1:30])
   }),
+  
+  tar_target(ncca20_sites_file, "raw_data/ncca/ncca20-siteinfo-great-lakes-data_revision-1_0.csv", format = "file"),
+  tar_target(ncca15_sites_file, "raw_data/ncca/ncca_2015_site_information_great_lakes-data.csv", format = "file"),
+  tar_target(ncca10_sites_file, "raw_data/ncca/assessed_ncca2010_siteinfo.revised.06212016.csv", format = "file"),
+  tar_target(ncca10na_sites_file, "raw_data/ncca/not_assessed_ncca2010_siteinfo.revised.06212016.csv", format = "file"),
+  
+  tar_target(ncca20_secchi_file, "raw_data/ncca/ncca20_secchi_data.csv", format = "file"),
+  tar_target(ncca15_secchi_file, "raw_data/ncca/ncca_2015_secchi_great_lakes-data.csv", format = "file"),
+  
+  tar_target(ncca20_hydro_file, "raw_data/ncca/ncca20_hydroprofile_data.csv", format = "file"),
+  tar_target(ncca15_hydro_file, "raw_data/ncca/ncca_2015_hydrographic_profile_great_lakes-data.csv", format = "file"),
+  tar_target(ncca10_hydro_file, "raw_data/ncca/assessed_ncca2010_hydrolab.csv", format = "file"),
+  tar_target(ncca10na_hydro_file, "raw_data/ncca/not_assessed_ncca2010_hydrolab.csv", format = "file"),
+  
+  tar_target(ncca20_chem_file, "raw_data/ncca/ncca20_waterchem_data.csv", format = "file"),
+  tar_target(ncca15_chem_file, "raw_data/ncca/ncca_2015_water_chemistry_great_lakes-data.csv", format = "file"),
+  tar_target(ncca10_chem_file, "raw_data/ncca/assessed_ncca2010_waterchem.csv", format = "file"),
+  tar_target(ncca10na_chem_file, "raw_data/ncca/not_assessed_ncca2010_waterchem.csv", format = "file"),
+  
+  
   
   #reading functions
   tar_target(ls_shp, read_sf(ls_shp_file)),
@@ -124,6 +163,13 @@ s1_targets <- list(
   
   tar_target(umd_1721, read_csv(umd_1721_file)),
   tar_target(umd_2123, read_csv(umd_2123_file)),
+  
+  tar_target(umd20_troll, read_xlsx(umd20_troll_file)),
+  
+  tar_target(nps16_sonde, read_csv(nps16_sonde_file, skip = 4)),
+  tar_target(nps_sonde, read_csv(nps_sonde_file)),
+  tar_target(nps_chem, read_csv(nps_chem_file, skip = 5)),
+  tar_target(nps_wetlab, read_csv(nps_wetlab_file)),
   
   tar_target(cbnut, read_xlsx(cbnut_file)),
   
@@ -159,8 +205,39 @@ s1_targets <- list(
   #tar_target(lksnut24, read_csv(lksnut24_file),
   
   tar_target(lksnut, bind_rows(lksnut12, lksnut13, lksnut14, lksnut15, lksnut16, lksnut17, lksnut18, lksnut19, lksnut20, lksnut21, lksnut22, lksnut23)),
-  
   tar_target(lkswq, get_lkswq_file()),
+  
+  tar_target(ncca20_sites, read_csv(ncca20_sites_file) %>% 
+               filter(GREAT_LAKE == "Lake Superior" & LAT_DD83 < 47.5 & LON_DD83 < -90 & VISIT_NO == 1)),
+  tar_target(ncca15_sites, read_csv(ncca15_sites_file) %>% 
+               filter(FEAT_NM == "Lake_Superior" & LAT_DD83 < 47.5 & LON_DD83 < -90 & VISIT_NO == 1)),
+  tar_target(ncca10_sites, read_csv(ncca10_sites_file) %>% 
+               filter(WTBDY_NM == "Lake Superior" & ALAT_DD < 47.5 & ALON_DD < -90 & VISIT_NO == 1)),
+  tar_target(ncca10na_sites, read_csv(ncca10na_sites_file) %>% 
+               filter(WTBDY_NM == "Lake Superior" & ALAT_DD < 47.5 & ALON_DD < -90 & VISIT_NO == 1)),
+  
+  tar_target(ncca20_secchi, read_csv(ncca20_secchi_file) %>% 
+               filter(SITE_ID %in% ncca20_sites$SITE_ID)),
+  tar_target(ncca15_secchi, read_csv(ncca15_secchi_file) %>% 
+               filter(SITE_ID %in% ncca15_sites$SITE_ID)),
+  
+  tar_target(ncca20_hydro, read_csv(ncca20_hydro_file) %>% 
+               filter(SITE_ID %in% ncca20_sites$SITE_ID)),
+  tar_target(ncca15_hydro, read_csv(ncca15_hydro_file) %>% 
+               filter(SITE_ID %in% ncca15_sites$SITE_ID)),
+  tar_target(ncca10_hydro, read_csv(ncca10_hydro_file) %>% 
+               filter(SITE_ID %in% ncca10_sites$SITE_ID)),
+  tar_target(ncca10na_hydro, read_csv(ncca10na_hydro_file) %>% 
+               filter(SITE_ID %in% ncca10na_sites$SITE_ID)),
+  
+  tar_target(ncca20_chem, read_csv(ncca20_chem_file) %>% 
+               filter(SITE_ID %in% ncca20_sites$SITE_ID)),
+  tar_target(ncca15_chem, read_csv(ncca15_chem_file) %>% 
+               filter(SITE_ID %in% ncca15_sites$SITE_ID)),
+  tar_target(ncca10_chem, read_csv(ncca10_chem_file) %>% 
+               filter(SITE_ID %in% ncca10_sites$SITE_ID)),
+  tar_target(ncca10na_chem, read_csv(ncca10na_chem_file) %>% 
+               filter(SITE_ID %in% ncca10na_sites$SITE_ID)),
   
   #pull wqp data
   tar_target(wqp_pull_trib, TADA_BigDataRetrieval(huc = c("04010102", "04010201", "04010202", "04010301", "04010302"), startDate = "2010-01-01", endDate = "2023-12-31")),
@@ -247,6 +324,7 @@ s1_targets <- list(
   
   tar_target(dnr_hydro_19_clean, dnr_hydro_19 %>% 
                mutate(`SpCond uS/cm` = if_else(is.na(`SpCond uS/cm`), 1000 * `SpCond mS/cm`, `SpCond uS/cm`),
+                      `SpCond uS/cm` = if_else(`SpCond uS/cm` < 50, NA, `SpCond uS/cm`), #remove bad conductivity values
                       Block = as.numeric(str_split_i(Block, " ", 2)),
                       `Date (MM/DD/YYYY)` = force_tz(`Date (MM/DD/YYYY)`, tzone = "America/Chicago")) %>%
                left_join(dnr_blocks, by = join_by(Block, `Date (MM/DD/YYYY)` == StartDateTime)) %>%
@@ -266,12 +344,14 @@ s1_targets <- list(
                select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
                       ph = pH, turb = `Turbidity (NTU)`)),
   tar_target(dnr_hydro_22_clean, dnr_hydro_22 %>%  
-               mutate(Date = mdy(Date)) %>% 
+               mutate(Date = mdy(Date),
+                      `pH (SU)` = if_else(`pH (SU)` < 6.5, NA, `pH (SU)`)) %>% # drop suspicious pH values
                left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
                select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
                       ph = `pH (SU)`, turb = `Turbidity (NTU)`)),
   tar_target(dnr_hydro_23_clean, dnr_hydro_23 %>% 
-               mutate(Date = mdy(Date)) %>% 
+               mutate(Date = mdy(Date),
+                      `Temp (C)` = NA) %>% # 2023 temp values are all suspiciously high, dropping
                left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
                select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
                       ph = `pH (SU)`, turb = `Turbidity (NTU)`)),
@@ -349,8 +429,140 @@ s1_targets <- list(
                       toc = poc + doc) %>% 
                rename(date = Date, site = Site)),
   
+  tar_target(umd20_troll_profile, umd20_troll %>% 
+               filter(`Profile or Transect` == "P") %>% 
+               select(date = `Date Time`, site = Station,
+                      latitude = `Latitude (°)`, longitude = `Longitude (°)`, depth = `Depth (ft) (525639)`,
+                      chl_field = `Chlorophyll-a Concentration (µg/L) (652536)`, temp = `Water Temperature (°C) (519767)`,
+                      cond = `Specific Conductivity (µS/cm) (675375)`, turb = `Turbidity (NTU) (695981)`, 
+                      tds = `Total Dissolved Solids (ppt) (675375)`, tss = `Total Suspended Solids (mg/L) (695981)`) %>% 
+               mutate(tds = tds * 1000,
+                      depth = depth * 0.3048,
+                      date = force_tz(date, tzone = "America/Chicago")) %>% 
+               filter(depth > 0 & cond > 80)), #remove measurements above water/suspected above water
+  tar_target(umd20_troll_transect, umd20_troll %>% 
+               filter(`Profile or Transect` == "T") %>% 
+               select(date = `Date Time`, site = Station,
+                      latitude = `Latitude (°)`, longitude = `Longitude (°)`, depth = `Depth (ft) (525639)`,
+                      chl_field = `Chlorophyll-a Concentration (µg/L) (652536)`, temp = `Water Temperature (°C) (519767)`,
+                      cond = `Specific Conductivity (µS/cm) (675375)`, turb = `Turbidity (NTU) (695981)`, 
+                      tds = `Total Dissolved Solids (ppt) (675375)`, tss = `Total Suspended Solids (mg/L) (695981)`) %>% 
+               mutate(tds = tds * 1000,
+                      depth = depth * 0.3048,
+                      date = force_tz(date, tzone = "America/Chicago")) %>% 
+               filter(depth > 0 & cond > 80)), #remove measurements above water/suspected above water
+  tar_target(umd20_troll_profile_surf, umd20_troll_profile %>% 
+               filter(depth < 2) %>% # only want surface measurements
+               mutate(date = date(date)) %>% 
+               group_by(date, site) %>%
+               summarise(across(c(latitude, longitude, depth, chl_field, temp, cond, turb, tds, tss), ~mean(.x, na.rm = TRUE)))%>% 
+               ungroup()),
+  tar_target(umd20_troll_transect_surf, umd20_troll_transect %>% 
+               filter(depth < 2) %>% # only want surface measurements
+               mutate(date = date(date)) %>% 
+               group_by(date, site) %>%
+               summarise(across(c(latitude, longitude, depth, chl_field, temp, cond, turb, tds, tss), ~mean(.x, na.rm = TRUE)))%>% 
+               ungroup()),
+  tar_target(umd20_troll_surf, umd20_troll_profile_surf %>% 
+               bind_rows(umd20_troll_transect_surf)),
+  
   tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>%
-               mutate(across(-c(source, type, site, depth, latitude, longitude), replace_nan)) %>% 
+               mutate(across(-c(source, type, site, depth, latitude, longitude), replace_nan)) %>%
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)) %>% 
+               left_join(select(umd20_troll_surf, -c(depth, tss, latitude, longitude)))),
+  
+  #nps sensor cleaning
+  tar_target(nps16_sonde_deploy_clean, nps16_sonde %>% # continuous data at consistent depth
+               mutate(site = Station,
+                      date = parse_date_time(`Date/Time`, c("mdy HM", "mdy HMS"), tz = "America/Chicago"),
+                      depth = if_else(is.na(`Depth m`), Depth, `Depth m`),
+                      Latitude = if_else(str_detect(site, "West"), Latitude[1], Latitude), #fixing coordinates, on 7/7/16 SIW starts having has coordinates for SIE
+                      Longitude = if_else(str_detect(site, "West"), Longitude[1], Longitude)) %>%
+               filter(!is.na(date) & depth > 8) %>% #conveniently, types of data (cont vs discrete) have different date formats, so we can parse one type and remove the ones that fail to parse; also drop measurements during deployment, indicated by depth
+               select(date, site, latitude = Latitude, longitude = Longitude, depth,
+                      temp = `Temp °C`, do = `ODO mg/L`, do_sat = `ODO % sat`, ph = pH, cond = `SpCond µS/cm`, turb = `Turbidity NTU`)),
+  tar_target(nps16_sonde_profile_clean, nps16_sonde %>% # discrete data at multiple depths
+               mutate(site = paste("SIW", Transect_Station, sep = " "),
+                      date = parse_date_time(`Date/Time`, c("%m/%d/%Y"), exact = TRUE, tz = "America/Chicago"),
+                      depth = if_else(is.na(`Depth m`), Depth, `Depth m`)) %>%
+               filter(!is.na(date)) %>%
+               select(date, site, latitude = Latitude, longitude = Longitude, depth,
+                      temp = `Temp °C`, do = `ODO mg/L`, do_sat = `ODO % sat`, ph = pH, cond = `SpCond µS/cm`, turb = `Turbidity NTU`)),
+  tar_target(nps_chem_clean, nps_chem %>%
+               mutate(site = if_else(!is.na(Transect_Station), str_c("SIW ", Transect_Station), Station),
+                      Latitude = as.numeric(str_trim(Latitude)),
+                      Longitude = as.numeric(str_trim(Longitude)),
+                      `SRP (ug/L)` = if_else(`SRP (ug/L)` == "BDL" | `SRP (ug/L)` == "0", 0.0008, as.numeric(`SRP (ug/L)`)), # using 0.5 * UMD MDL
+                      `NO3 -` = if_else(`NO3 -` == "BDL", 0.001, as.numeric(`NO3 -`)), # using 0.5 * UMD MDL
+                      `SO43-` = as.numeric(`SO43-`),
+                      po4 = `SRP (ug/L)` * 0.001,
+                      tdp = `TDP (ug/L)` * 0.001, # convert to mg/L
+                      pp = `PP (ug/L)` * 0.001,
+                      tp = tdp + pp,
+                      date = mdy(Date, tz = "America/Chicago")) %>%
+               filter(!is.na(Latitude)) %>%
+               select(date, site, latitude = Latitude, longitude = Longitude, depth = `Sample Depth (m)`,
+                      chl = `Chl-a (ug/L)`, tp, tdp, pp, po4, no3 = `NO3 -`, cl = `Cl-`, so4 = `SO43-`)),
+  tar_target(nps_wetlab_clean, nps_wetlab %>% 
+               mutate(date = mdy_hm(DateTime, tz = "America/Chicago"),
+                      date = ceiling_date(date, unit = "minute")) %>%
+               filter(!is.na(date)) %>% 
+               select(date, site = Station, depth = StationDepth, chl = CHL, cdom = CDOM) %>%
+               mutate(across(c(chl, cdom), ~if_else(.x < 0, NA, .x))) %>% 
+               group_by(date, site) %>%
+               summarise(across(c(depth, chl, cdom), ~mean(.x, na.rm = TRUE)))),
+  tar_target(nps_sonde_clean, nps_sonde %>% 
+               mutate(SpCond = if_else(is.na(SpCond), Cond, SpCond)) %>% # values in wrong column
+               select(date = DateTime, site = Station, latitude = Latitude, longitude = Longitude, depth = SensorDepth,
+                      chl = Chlorophyll, temp = Temp, do = ODOmg, do_sat = ODOsat, cond = SpCond, ph = pH, turb = Turbidity, tds = TDS) %>% 
+               mutate(date = mdy_hm(date, tz = "America/Chicago"),
+                      cond = if_else(cond < 70, NA, cond),
+                      across(c(chl, temp, turb), ~if_else(.x < 0, NA, .x))) %>% 
+               filter(date > ymd("2016-01-01")) %>% 
+               bind_rows(nps16_sonde_deploy_clean) %>% 
+               arrange(date)),
+  
+  tar_target(nps_wetlab_hourly, nps_wetlab_clean %>% 
+               mutate(date = floor_date(date, unit = "hour")) %>%
+               group_by(date, site) %>%
+               summarise(across(c(depth, chl, cdom), ~mean(.x, na.rm = TRUE))) %>% 
+               ungroup()),
+  tar_target(nps_sonde_hourly, nps_sonde_clean %>%
+               mutate(date = floor_date(date, unit = "hour")) %>%
+               group_by(date, site, latitude, longitude) %>%
+               summarise(across(c(depth, chl, temp, do, do_sat, ph, cond, turb, tds), ~mean(.x, na.rm = TRUE))) %>% 
+               ungroup()),
+  tar_target(nps_sonde_daily, nps_sonde_hourly %>%
+               mutate(date = date(date)) %>%
+               group_by(date, site, latitude, longitude) %>%
+               summarise(across(c(depth, chl, temp, do, do_sat, ph, cond, turb, tds), ~mean(.x, na.rm = TRUE))) %>% 
+               ungroup()),
+  tar_target(nps_wetlab_daily, nps_wetlab_hourly %>%
+               mutate(date = date(date)) %>%
+               group_by(date, site) %>%
+               summarise(across(c(depth, chl, cdom), ~mean(.x, na.rm = TRUE))) %>% 
+               ungroup()),
+  tar_target(nps_sonde_wetlab, nps_wetlab_hourly %>%
+               inner_join(nps_sonde_hourly, by = join_by(date, site)) %>% 
+               filter(depth.y != 5) %>% 
+               select(date, site, latitude, longitude, depth = depth.y,
+                      chl = chl.x, cdom, turb, temp, do, do_sat, ph, cond, tds) %>% 
+               arrange(date)),
+  
+  tar_target(nps_sonde_surf, nps16_sonde_profile_clean %>%
+               filter(depth <= 2) %>% # matching with chem depth of 2 m
+               group_by(date, site, latitude, longitude) %>%
+               summarise(across(c(temp, do, do_sat, ph, cond, turb), ~mean(.x, na.rm = TRUE)))),
+  tar_target(nps_chem_surf, nps_chem_clean %>%
+               filter(is.na(depth) | depth < 8)),
+  
+  tar_target(nps, nps_chem_surf %>%
+               left_join(nps_sonde_surf, by = join_by(date, site)) %>%
+               rename(latitude = latitude.x, # using coordinates from chem file, since they're consistent with other sonde data
+                      longitude = longitude.x) %>%
+               select(-c(latitude.y, longitude.y)) %>%
+               mutate(source = "NPS", type = "Lake") %>%
+               arrange(date) %>%
                st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
   
   #ncbc cleaning
@@ -366,7 +578,7 @@ s1_targets <- list(
                       turb = if_else(turb < 0 | turb > 1000, NA, turb),
                       do = if_else(do > 20, NA, do),
                       ph = if_else(ph > 14, NA, ph),
-                      force_tz(date, tzone = "America/Chicago"),
+                      date = force_tz(date, tzone = "America/Chicago"),
                       date = date(date)) %>% 
                left_join(cb_stations) %>% 
                mutate(source = "NCBC", type = "Lake") %>%
@@ -446,6 +658,124 @@ s1_targets <- list(
                left_join(nerr_stations) %>%
                mutate(source = "LSNERR", type = "Estuary") %>% 
                st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+  
+  #ncca cleaning
+  tar_target(ncca20_sites_clean, ncca20_sites %>% 
+               select(ncca = UNIQUE_ID, site = SITE_ID, latitude = LAT_DD83, longitude = LON_DD83) %>% 
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+  tar_target(ncca15_sites_clean, ncca15_sites %>% 
+               select(ncca = UNIQUE_ID, site = SITE_ID, latitude = LAT_DD83, longitude = LON_DD83) %>% 
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+  tar_target(ncca10_sites_clean, ncca10_sites %>% 
+               select(site = SITE_ID, latitude = ALAT_DD, longitude = ALON_DD) %>% 
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)) %>%
+               st_join(ncca20_sites_clean, st_is_within_distance, dist = 100) %>% # adding unique ID to sites if they're within 100 meters of a known site in 2015/2020
+               st_join(ncca15_sites_clean, st_is_within_distance, dist = 100) %>%
+               mutate(ncca.x = if_else(is.na(ncca.x) & !is.na(ncca.y), ncca.y, ncca.x)) %>% 
+               select(ncca = ncca.x, site = site.x)),
+  tar_target(ncca10na_sites_clean, ncca10na_sites %>% 
+               select(site = SITE_ID, latitude = ALAT_DD, longitude = ALON_DD) %>% 
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)) %>%
+               st_join(ncca20_sites_clean, st_is_within_distance, dist = 100) %>%
+               st_join(ncca15_sites_clean, st_is_within_distance, dist = 100) %>%
+               mutate(ncca.x = if_else(is.na(ncca.x) & !is.na(ncca.y), ncca.y, ncca.x)) %>% 
+               select(ncca = ncca.x, site = site.x)),
+  
+  tar_target(ncca20_secchi_clean, ncca20_secchi %>% 
+               mutate(DATE_COL = mdy(DATE_COL)) %>% 
+               filter(REP == 1) %>% 
+               select(date = DATE_COL, site = SITE_ID, secchi = MEAN_SECCHI_DEPTH)),
+  tar_target(ncca15_secchi_clean, ncca15_secchi %>% 
+               mutate(DATE_COL = as.Date(DATE_COL-2, origin = mdy("1-1-1900"))) %>%
+               filter(REP == 0) %>% 
+               select(date = DATE_COL, site = SITE_ID, secchi = MEAN_SECCHI_DEPTH)),
+  tar_target(ncca10_secchi_clean, ncca10_hydro %>% 
+               filter(PARAMETER == "SECCHI_MEAN") %>%
+               mutate(DATE_COL = mdy(DATE_COL)) %>%
+               select(date = DATE_COL, site = SITE_ID, PARAMETER, RESULT) %>%
+               mutate(RESULT = if_else(RESULT < 0, NA, RESULT)) %>% 
+               pivot_wider(names_from = PARAMETER, values_from = RESULT) %>% 
+               rename(secchi = SECCHI_MEAN)),
+  tar_target(ncca10na_secchi_clean, ncca10na_hydro %>% 
+               filter(PARAMETER == "SECCHI_MEAN") %>% 
+               mutate(DATE_COL = mdy(DATE_COL)) %>%
+               select(date = DATE_COL, site = SITE_ID, PARAMETER, RESULT) %>%
+               mutate(RESULT = if_else(RESULT < 0, NA, RESULT)) %>% 
+               pivot_wider(names_from = PARAMETER, values_from = RESULT) %>% 
+               rename(secchi = SECCHI_MEAN)),
+  
+  tar_target(ncca20_hydro_clean, ncca20_hydro %>% 
+               mutate(DATE_COL = mdy(DATE_COL)) %>%
+               select(date = DATE_COL, site = SITE_ID, depth = DEPTH, cond = CONDUCTIVITY, do = DO, ph = PH, temp = TEMPERATURE)),
+  tar_target(ncca15_hydro_clean, ncca15_hydro %>% 
+               mutate(DATE_COL = as.Date(DATE_COL-2, origin = mdy("1-1-1900"))) %>%
+               select(date = DATE_COL, site = SITE_ID, depth = DEPTH, cond = CONDUCTIVITY, do = DO, ph = PH, temp = TEMPERATURE)),
+  tar_target(ncca10_hydro_clean, ncca10_hydro %>% 
+               filter(CAST != "IM_CALC") %>% 
+               mutate(DATE_COL = mdy(DATE_COL)) %>%
+               select(DATE_COL, SITE_ID, CAST, SDEPTH, PARAMETER, RESULT) %>% 
+               pivot_wider(names_from = PARAMETER, values_from = RESULT, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
+               select(date = DATE_COL, site = SITE_ID, depth = SDEPTH, cond = COND, do = DO, ph = pH, temp = TEMP, turb = TURB)),
+  tar_target(ncca10na_hydro_clean, ncca10na_hydro %>% 
+               filter(CAST != "IM_CALC") %>% 
+               mutate(DATE_COL = mdy(DATE_COL)) %>%
+               select(DATE_COL, SITE_ID, CAST, SDEPTH, PARAMETER, RESULT) %>% 
+               pivot_wider(names_from = PARAMETER, values_from = RESULT, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
+               select(date = DATE_COL, site = SITE_ID, depth = SDEPTH, cond = COND, do = DO, ph = pH, temp = TEMP)),
+  
+  tar_target(ncca20_chem_clean, ncca20_chem %>% 
+               mutate(RESULT = if_else(is.na(RESULT) & NARS_FLAG == "ND", 0.5 * MDL, RESULT),
+                      DATE_COL = mdy(DATE_COL)) %>% 
+               select(DATE_COL, SITE_ID, ANALYTE, RESULT) %>% 
+               pivot_wider(names_from = ANALYTE, values_from = RESULT) %>% 
+               mutate(NITRATE_N = if_else(is.na(NITRATE_N), NITRATE_NITRITE_N, NITRATE_N)) %>% 
+               select(date = DATE_COL, site = SITE_ID, chl = CHLA, tn = NTL, no3 = NITRATE_N, no2 = NITRITE_N,
+                      nh3 = AMMONIA_N, din = DIN, tp = PTL, po4 = SRP, cl = CHLORIDE, so4 = SULFATE)),
+  tar_target(ncca15_chem_clean, ncca15_chem %>% 
+               mutate(RESULT = if_else(is.na(RESULT) & NARS_FLAG == "ND", 0.5 * MDL, RESULT),
+                      DATE_COL = dmy(DATE_COL)) %>% 
+               select(DATE_COL, SITE_ID, ANALYTE, RESULT) %>% 
+               pivot_wider(names_from = ANALYTE, values_from = RESULT) %>% 
+               select(date = DATE_COL, site = SITE_ID, chl = CHLA, tn = NTL, no3 = NITRATE_N, no2 = NITRITE_N,
+                      nh3 = AMMONIA_N, din = DIN, tp = PTL, po4 = SRP, cl = CHLORIDE, so4 = SULFATE, si = SILICA)),
+  tar_target(ncca10_chem_clean, ncca10_chem %>% 
+               mutate(RESULT = if_else(!is.na(QACODE) & QACODE == "N", 0.5 * MDL, RESULT),
+                      DATE_COL = mdy(DATE_COL)) %>% 
+               select(DATE_COL, SITE_ID, PARAMETER, RESULT) %>% 
+               pivot_wider(names_from = PARAMETER, values_from = RESULT) %>% 
+               select(date = DATE_COL, site = SITE_ID, chl = CHLA, tn = NTL, no3 = NO3NO2, tkn = TKN,
+                      nh3 = NH3, din = DIN, tp = PTL, po4 = SRP)),
+  tar_target(ncca10na_chem_clean, ncca10na_chem %>% 
+               mutate(RESULT = if_else(!is.na(QACODE) & QACODE == "N", 0.5 * MDL, RESULT),
+                      DATE_COL = mdy(DATE_COL)) %>% 
+               select(DATE_COL, SITE_ID, PARAMETER, RESULT) %>% 
+               pivot_wider(names_from = PARAMETER, values_from = RESULT) %>% 
+               select(date = DATE_COL, site = SITE_ID, chl = CHLA, tn = NTL, no3 = NO3NO2,
+                      nh3 = NH3, din = DIN, tp = PTL, po4 = SRP)),
+  
+  tar_target(ncca_sites, bind_rows(ncca20_sites_clean, ncca15_sites_clean, ncca10_sites_clean, ncca10na_sites_clean)),
+  tar_target(ncca_secchi, bind_rows(ncca20_secchi_clean, ncca15_secchi_clean, ncca10_secchi_clean, ncca10na_secchi_clean)),
+  tar_target(ncca_hydro, bind_rows(ncca20_hydro_clean, ncca15_hydro_clean, ncca10_hydro_clean, ncca10na_hydro_clean)),
+  tar_target(ncca_chem, bind_rows(ncca20_chem_clean, ncca15_chem_clean, ncca10_chem_clean, ncca10na_chem_clean)),
+  
+  tar_target(ncca_hydro_surf, ncca_hydro %>% 
+               filter(depth <= 1) %>% 
+               group_by(date, site) %>% 
+               summarise(across(c(depth, cond, do, ph, temp, turb), ~mean(.x, na.rm = TRUE))) %>% 
+               mutate(across(c(cond, do, ph, temp, turb), replace_nan)) %>% 
+               select(-depth)),
+  
+  tar_target(ncca, ncca_chem %>% 
+               left_join(ncca_hydro_surf) %>% 
+               left_join(ncca_secchi) %>% 
+               left_join(ncca_sites) %>% 
+               mutate(site = if_else(!is.na(ncca), ncca, site),
+                      source = "NCCA",
+                      type = if_else(site %in% c("NGL_MN-10014", "NGL_MN-10017", "NGL_MN-10012", "NGL_MN-10011", "NCCAGL10-2001",
+                                                 "NCCAGL10-GLBA10-118", "NGL_MN-10019", "NGL_MN-10015", "NCCAGL10-GLBA10-134"),
+                                     "Estuary", "Great Lake")) %>% 
+               select(-ncca) %>% 
+               arrange(date)),
   
   
   # cleaning WQP data
@@ -555,6 +885,8 @@ s1_targets <- list(
                bind_rows(filter(umd, type == "Lake")) %>% 
                bind_rows(cbnut_clean) %>% 
                bind_rows(filter(wqp_wide, type == "Great Lake")) %>%
+               bind_rows(filter(ncca, type == "Great Lake")) %>%
+               bind_rows(nps) %>% 
                mutate(chl = rowMeans(across(c(chl, chl_field)), na.rm = TRUE), #combine chl and chl_field
                       chl = if_else(is.nan(chl), NA, chl)) %>% 
                select(date, site, source, depth, chl, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)
@@ -568,7 +900,9 @@ s1_targets <- list(
                arrange(date)),
   
   tar_target(est_full, lsnerr %>%
-               bind_rows(filter(wqp_wide, type == "Estuary")) %>% 
+               bind_rows(filter(wqp_wide, type == "Estuary")) %>%
+               bind_rows(filter(ncca, type == "Estuary")) %>%
+               filter(source != "NARS_WQX") %>% # dropping duplicates
                mutate(chl = rowMeans(across(c(chl, chl_field)), na.rm = TRUE), #combine chl and chl_field
                       chl = if_else(is.nan(chl), NA, chl)) %>%
                select(date, site, source, depth, flow, chl, tss, turb, cond, ph, temp, do, do_sat, # reorder, drop station and type (all lake)

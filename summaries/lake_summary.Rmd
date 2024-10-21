@@ -26,13 +26,13 @@ lake_corr <- select(lake, -c(date, site, source, depth)) %>%
 lake_cor <- rcorr(as.matrix(lake_corr), type = 'spearman')
 lake_cor$P[is.na(lake_cor$P)] <- 1
 
-# lake_rf_prep <- lake %>% 
-#   st_drop_geometry() %>%
-#   mutate(month = month(date)) %>% 
-#   select(month, no3, nh3, tp, po4, tss, chl) %>% 
-#   mutate(month = as.factor(month)) %>% 
-#   na.omit()
-# lake_rf <- randomForest(chl ~ ., data = lake_rf_prep, importance = TRUE, ntree = 1000)
+lake_rf_prep <- lake %>%
+  st_drop_geometry() %>%
+  mutate(month = month(date)) %>%
+  select(month, no3, nh3, tn, tp, po4, temp, do, cond, ph, chl) %>%
+  mutate(month = as.factor(month)) %>%
+  na.omit()
+lake_rf <- randomForest(chl ~ ., data = lake_rf_prep, importance = TRUE, ntree = 1000)
 
 ```
 
@@ -52,14 +52,14 @@ corrplot(lake_cor$r, type = "lower", tl.cex = .5, p.mat = lake_cor$P, sig.level 
 Just in case you aren't familiar, random forest models involve making a bunch a decision trees based on random subsets of a dataset. Looking at the common themes among different trees can help you understand trends in the data.
 These tables show various measures of importance of variables to each model. With the exception of mean_min_depth, a higher value means the variable is more important. MSE increase is the measure I put the most weight in, since it actually measures the importance of the variable to predict chl a, whereas others tell you more about how integral the variable is to the model itself. Mean min depth is the mean level of the decision tree the variable appears at, number of nodes is the total number nodes that use the variable across all trees (1000), node purity increase is measures how often a node with that variable leads to a single outcome, and number of times a root is just how often that variable was the base of a tree.
 
-#### Lake Superior - not currently run because there are too few rows with consistent data
+#### Lake Superior 
 ```{r rf_lake, echo=FALSE}
-# importance <- measure_importance(lake_rf) %>% 
-#   mutate(mse_increase = round(mse_increase, 3),
-#          mean_min_depth = round(mean_min_depth, 2),
-#          node_purity_increase = round(node_purity_increase, 2)) %>% 
-#   select(-c(p_value, no_of_trees))
-# datatable(importance)
+importance <- measure_importance(lake_rf) %>%
+  mutate(mse_increase = round(mse_increase, 3),
+         mean_min_depth = round(mean_min_depth, 2),
+         node_purity_increase = round(node_purity_increase, 2)) %>%
+  select(-c(p_value, no_of_trees))
+datatable(importance)
 ```
 
 ## Plots of Chlorophyll vs everything else
@@ -103,6 +103,9 @@ ggplotly(lake %>%
   ggplot(aes(x = tss, y = chl, text = str_c(site, date, sep = " "))) +
   geom_point())
 ggplotly(lake %>%
+  ggplot(aes(x = cl, y = chl, text = str_c(site, date, sep = " "))) +
+  geom_point())
+ggplotly(lake %>%
       mutate(month = as_factor(month(date))) %>%      
   ggplot(aes(x = month, y = chl, text = str_c(site, date, sep = " "))) +
   geom_point())
@@ -112,14 +115,15 @@ ggplotly(lake %>%
 ## Maps!
 
 ```{r mapchl, echo=FALSE, fig.height=6}
+lakechl <- filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 20, NA, chl))
 plotchl <-  ggplot() +
                theme_bw() +
                geom_sf(data = ls_crop) +
-               geom_sf(data = filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 20, NA, chl)), mapping = aes(color = chl), size = 7) +
+               geom_sf(data = lakechl, mapping = aes(color = chl), size = 7) +
                scale_color_gradient(low = "#d7f4cb", high = "darkgreen", na.value = "gray30") +
                transition_states(date) +
-               labs(title = "CHL on Week of {closest_state}")
-animate(plotchl, nframes = length(unique(lake$date)), fps = 2)
+               labs(title = "CHL on {closest_state}")
+animate(plotchl, nframes = length(unique(lakechl$date)), fps = 2)
 ```
 ```{r maptss, echo=FALSE, fig.height=2}
 # plottss <-  ggplot() +
