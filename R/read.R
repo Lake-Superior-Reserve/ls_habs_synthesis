@@ -87,7 +87,7 @@ s1_targets <- list(
   tar_target(umd_1721_file, "raw_data/umd/SouthShoreArchive.csv", format = "file"),
   tar_target(umd_2123_file, "raw_data/umd/SouthShoreArchive2021to2023.csv", format = "file"),
   
-  tar_target(umd20_troll_file, "raw_data/umd/2020/Troll 2020.xlsx", format = "file"),
+  tar_target(umd20_troll_file, "raw_data/umd/Troll 2020.xlsx", format = "file"),
   
   tar_target(nps16_sonde_file, "raw_data/nps/Apostle Islands Sonde Data.csv", format = "file"),
   tar_target(nps_sonde_file, "raw_data/nps/sonde.csv", format = "file"),
@@ -358,22 +358,22 @@ s1_targets <- list(
 
   #surface files
   tar_target(dnr_hydro_19_surf, dnr_hydro_19_clean %>% 
-               filter(depth <= 1 & !is.na(station)) %>% 
+               filter(depth <= 2 & !is.na(station)) %>% 
                group_by(date, station) %>%
                summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
                          cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE), chl_field = mean(chl_f, na.rm = TRUE))),
   tar_target(dnr_hydro_21_surf, dnr_hydro_21_clean %>% 
-               filter(depth <= 1) %>% 
+               filter(depth <= 2) %>% 
                group_by(date, station) %>%
                summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
                          cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE))),
   tar_target(dnr_hydro_22_surf, dnr_hydro_22_clean %>% 
-               filter(depth <= 1) %>% 
+               filter(depth <= 2) %>% 
                group_by(date, station) %>%
                summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
                          cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE))),
   tar_target(dnr_hydro_23_surf, dnr_hydro_23_clean %>% 
-               filter(depth <= 1) %>% 
+               filter(depth <= 2) %>% 
                group_by(date, station) %>%
                summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
                          cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE))),
@@ -759,7 +759,7 @@ s1_targets <- list(
   tar_target(ncca_chem, bind_rows(ncca20_chem_clean, ncca15_chem_clean, ncca10_chem_clean, ncca10na_chem_clean)),
   
   tar_target(ncca_hydro_surf, ncca_hydro %>% 
-               filter(depth <= 1) %>% 
+               filter(depth <= 2) %>% 
                group_by(date, site) %>% 
                summarise(across(c(depth, cond, do, ph, temp, turb), ~mean(.x, na.rm = TRUE))) %>% 
                mutate(across(c(cond, do, ph, temp, turb), replace_nan)) %>% 
@@ -838,7 +838,7 @@ s1_targets <- list(
                mutate(date = ymd(ActivityStartDate, tz = "America/Chicago"),
                       nh3 = rowMeans(across(c(`AMMONIA_FILTERED_AS N_MG/L`, `AMMONIA_UNFILTERED_AS N_MG/L`)), na.rm = TRUE), #combining filtered and unfiltered parameters where they shouldn't be split (ions, mislabeled chl)
                       cl = rowMeans(across(c(`CHLORIDE_FILTERED_NA_MG/L`, `CHLORIDE_UNFILTERED_NA_MG/L`)), na.rm = TRUE),
-                      chl = rowMeans(across(c(`CHLOROPHYLL A_UNFILTERED_NA_UG/L`, `CHLOROPHYLL A, UNCORRECTED FOR PHEOPHYTIN_UNFILTERED_NA_MG/L`, `CHLOROPHYLL A_FILTERED_NA_UG/L`, `CHLOROPHYLL A, UNCORRECTED FOR PHEOPHYTIN_FILTERED_NA_MG/L`))),
+                      chl = rowMeans(across(c(`CHLOROPHYLL A_UNFILTERED_NA_UG/L`, `CHLOROPHYLL A, UNCORRECTED FOR PHEOPHYTIN_UNFILTERED_NA_MG/L`, `CHLOROPHYLL A_FILTERED_NA_UG/L`, `CHLOROPHYLL A, UNCORRECTED FOR PHEOPHYTIN_FILTERED_NA_MG/L`))), # all chl sensor measurements (ie buoys) were removed when filtering to surface samples only
                       pheo = rowMeans(across(c(`PHEOPHYTIN A_FILTERED_NA_UG/L`, `PHEOPHYTIN A_UNFILTERED_NA_UG/L`)), na.rm = TRUE),
                       no23 = rowMeans(across(c(`NITRATE + NITRITE_FILTERED_AS N_MG/L`, `NITRATE + NITRITE_UNFILTERED_AS N_MG/L`)), na.rm = TRUE),
                       no3 = rowMeans(across(c(`NITRATE_FILTERED_AS N_MG/L`, `NITRATE_UNFILTERED_AS N_MG/L`)), na.rm = TRUE),
