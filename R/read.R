@@ -89,6 +89,19 @@ s1_targets <- list(
   
   tar_target(umd20_troll_file, "raw_data/umd/Troll 2020.xlsx", format = "file"),
   
+  tar_target(get_umd23_file, function() {
+    dir <- "raw_data/umd/2023"
+    troll <- data.frame()
+    for (file in list.files(dir)) {
+      site <- str_split_i(file, "_", 3)
+      site <- str_split_i(site, ".x", 1)
+      new_troll <- read_xlsx(str_c(dir,file,sep = "/"))
+      new_troll$site <- site
+      troll <- bind_rows(troll, new_troll)
+    }
+    return(troll)
+  }),
+  
   tar_target(nps16_sonde_file, "raw_data/nps/Apostle Islands Sonde Data.csv", format = "file"),
   tar_target(nps_sonde_file, "raw_data/nps/sonde.csv", format = "file"),
   tar_target(nps_chem_file, "raw_data/nps/Apostle Islands Water Chemistry.csv", format = "file"),
@@ -138,7 +151,6 @@ s1_targets <- list(
   tar_target(ncca10na_chem_file, "raw_data/ncca/not_assessed_ncca2010_waterchem.csv", format = "file"),
   
   
-  
   #reading functions
   tar_target(ls_shp, read_sf(ls_shp_file)),
   tar_target(nerr_stations, read_csv(nerr_stations_file) %>%
@@ -165,6 +177,7 @@ s1_targets <- list(
   tar_target(umd_2123, read_csv(umd_2123_file)),
   
   tar_target(umd20_troll, read_xlsx(umd20_troll_file)),
+  tar_target(umd23_troll, get_umd23_file()),
   
   tar_target(nps16_sonde, read_csv(nps16_sonde_file, skip = 4)),
   tar_target(nps_sonde, read_csv(nps_sonde_file)),
@@ -466,10 +479,41 @@ s1_targets <- list(
   tar_target(umd20_troll_surf, umd20_troll_profile_surf %>% 
                bind_rows(umd20_troll_transect_surf)),
   
+  tar_target(umd23_troll_clean, umd23_troll %>% 
+               mutate(date = force_tz(`Date Time`, tzone = "America/Chicago"),
+                      tds = `Total Dissolved Solids (ppt) (803397)` * 1000,
+                      depth = `Depth (ft) (785112)` * 0.3048) %>% 
+               select(date, site,
+                      latitude = `Latitude (°)`, longitude = `Longitude (°)`, depth,
+                      chl_field = `Chlorophyll-a Fluorescence (RFU) (804408)`, temp = `Temperature (°C) (804550)`, # based on the troll 2020 file, chl RFU is equivalent to ug/L for this sensor
+                      cond = `Specific Conductivity (µS/cm) (803397)`, turb = `Turbidity (NTU) (803671)`, tds) %>% 
+               mutate(cond = if_else(cond < 50, NA, cond),
+                      tds = if_else(tds < 40, NA, tds),
+                      turb = if_else(turb > 10000, NA, turb))),
+  tar_target(umd23_troll_surf, umd23_troll_clean %>% 
+               filter(depth < 2) %>% # only want surface measurements
+               mutate(date = date(date)) %>% 
+               group_by(date, site) %>%
+               summarise(across(c(latitude, longitude, depth, chl_field, temp, cond, turb, tds), ~mean(.x, na.rm = TRUE)))%>% 
+               ungroup() %>% 
+               mutate(site = sapply(site, function(site){
+                 if (site == "BBay") return("Bark Bay")
+                 else if (site == "MB5a") return("Mawikwe Bay")
+                 else if (site == "MB5c") return("Mawikwe Bay c")
+                 else if (site == "SBay") return("Siskiwit Bay")
+                 else if (site == "SBay2") return("Siskiwit Bay 2")
+                 else if (site == "SBay3") return("Siskiwit Bay 3")
+                 else if (site == "SBay1") return("Siskiwit Bay")
+                 else if (site == "SCav") return("Sea Caves")
+                 else return(site)
+               }))),
+  
+  tar_target(umd_troll_surf, bind_rows(umd20_troll_surf, umd23_troll_surf)),
+  
   tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>%
                mutate(across(-c(source, type, site, depth, latitude, longitude), replace_nan)) %>%
                st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)) %>% 
-               left_join(select(umd20_troll_surf, -c(depth, tss, latitude, longitude)))),
+               left_join(select(umd_troll_surf, -c(depth, tss, latitude, longitude)))),
   
   #nps sensor cleaning
   tar_target(nps16_sonde_deploy_clean, nps16_sonde %>% # continuous data at consistent depth
