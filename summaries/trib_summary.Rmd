@@ -18,21 +18,21 @@ library(corrplot)
 library(randomForest)
 library(randomForestExplainer)
 
-ls_crop <- tar_read(ls_crop, store = "../_targets")
-lake <- tar_read(lake_full, store = "../_targets")
 
-lake_corr <- select(lake, -c(date, site, source, depth)) %>% 
+trib <- tar_read(trib_full, store = "../_targets")
+
+trib_corr <- select(trib, -c(date, site, source)) %>% 
       st_drop_geometry()
-lake_cor <- rcorr(as.matrix(lake_corr), type = 'spearman')
-lake_cor$P[is.na(lake_cor$P)] <- 1
+trib_cor <- rcorr(as.matrix(trib_corr), type = 'spearman')
+trib_cor$P[is.na(trib_cor$P)] <- 1
 
-lake_rf_prep <- lake %>%
+trib_rf_prep <- trib %>%
   st_drop_geometry() %>%
   mutate(month = month(date)) %>%
   select(month, no3, nh3, tn, tp, po4, temp, do, cond, ph, chl) %>%
   mutate(month = as.factor(month)) %>%
   na.omit()
-lake_rf <- randomForest(chl ~ ., data = lake_rf_prep, importance = TRUE, ntree = 1000)
+trib_rf <- randomForest(chl ~ ., data = trib_rf_prep, importance = TRUE, ntree = 1000)
 
 ```
 
@@ -41,9 +41,9 @@ lake_rf <- randomForest(chl ~ ., data = lake_rf_prep, importance = TRUE, ntree =
 
 Here's a plot showing spearman correlation coefficients between variables. Bigger size/darker color means a stronger correlation. Only correlations with P < 0.05 are shown.
 
-#### Lake Superior
-```{r lake_corr, echo=FALSE, error=TRUE}
-corrplot(lake_cor$r, type = "lower", tl.cex = .5, p.mat = lake_cor$P, sig.level = 0.05, insig = 'blank', outline = T)
+#### trib Superior
+```{r trib_corr, echo=FALSE, error=TRUE}
+corrplot(trib_cor$r, type = "lower", tl.cex = .5, p.mat = trib_cor$P, sig.level = 0.05, insig = 'blank', outline = T)
 ```
 
 
@@ -115,7 +115,7 @@ ggplotly(lake %>%
 ## Maps!
 
 ```{r mapchl, echo=FALSE, fig.height=6}
-lakechl <- filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 10, NA, chl))
+lakechl <- filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 20, NA, chl))
 plotchl <-  ggplot() +
                theme_bw() +
                geom_sf(data = ls_crop) +
@@ -123,7 +123,7 @@ plotchl <-  ggplot() +
                scale_color_gradient(low = "#d7f4cb", high = "darkgreen", na.value = "gray30") +
                transition_states(date) +
                labs(title = "CHL on {closest_state}")
-animate(plotchl, nframes = length(unique(lakechl$date)), fps = 5)
+animate(plotchl, nframes = length(unique(lakechl$date)), fps = 2)
 ```
 ```{r maptss, echo=FALSE, fig.height=2}
 # plottss <-  ggplot() +

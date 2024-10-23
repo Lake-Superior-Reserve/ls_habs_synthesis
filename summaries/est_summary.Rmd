@@ -22,7 +22,7 @@ lake <- tar_read(est_full, store = "../_targets")
 ls_crop_lsnerr <- st_crop(tar_read(ls_shp, store = "../_targets"), st_bbox(c(xmin = -92.4, ymin = 46.6, xmax = -91.9, ymax = 46.8)))
 
 
-lake_corr <- select(lake, -c(date, site, source, depth, flow)) %>% 
+lake_corr <- select(lake, -c(date, site, source, depth, discharge)) %>% 
       st_drop_geometry()
 lake_cor <- rcorr(as.matrix(lake_corr), type = 'spearman')
 lake_cor$P[is.na(lake_cor$P)] <- 1
