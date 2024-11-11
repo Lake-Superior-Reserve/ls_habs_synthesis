@@ -8,6 +8,6 @@ source("R/read.R")
 source("R/visual.R")
 
 list(
-  s1_targets,
-  s2_targets
+  read_targets,
+  viz_targets
 )

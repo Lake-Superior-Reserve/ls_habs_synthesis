@@ -58,22 +58,22 @@ corrplot(lake_cor$r, type = "lower", tl.cex = .5, p.mat = lake_cor$P, sig.level 
 ## Variable Importance (random forest)
 #### more limited parameters, more observations (760)
 ```{r rf_lake1, echo=FALSE}
-importance <- measure_importance(lake_rf1) %>%
-  mutate(mse_increase = round(mse_increase, 3),
-         mean_min_depth = round(mean_min_depth, 2),
-         node_purity_increase = round(node_purity_increase, 2)) %>%
-  select(-c(p_value, no_of_trees))
-datatable(importance)
+# importance <- measure_importance(lake_rf1) %>%
+#   mutate(mse_increase = round(mse_increase, 3),
+#          mean_min_depth = round(mean_min_depth, 2),
+#          node_purity_increase = round(node_purity_increase, 2)) %>%
+#   select(-c(p_value, no_of_trees))
+datatable(lake_rf1$importance)
 ```
 
 #### more parameters, fewer observations (130)
 ```{r rf_lake2, echo=FALSE}
-importance <- measure_importance(lake_rf2) %>%
-  mutate(mse_increase = round(mse_increase, 3),
-         mean_min_depth = round(mean_min_depth, 2),
-         node_purity_increase = round(node_purity_increase, 2)) %>%
-  select(-c(p_value, no_of_trees))
-datatable(importance)
+# importance <- measure_importance(lake_rf2) %>%
+#   mutate(mse_increase = round(mse_increase, 3),
+#          mean_min_depth = round(mean_min_depth, 2),
+#          node_purity_increase = round(node_purity_increase, 2)) %>%
+#   select(-c(p_value, no_of_trees))
+datatable(lake_rf2$importance)
 ```
 
 ## Plots of Chlorophyll vs everything else

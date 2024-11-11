@@ -21,8 +21,9 @@ library(randomForestExplainer)
 ls_crop <- tar_read(ls_crop, store = "../_targets")
 lake <- tar_read(lake_full, store = "../_targets")
 
-lake_corr <- select(lake, -c(date, site, source, depth)) %>% 
-      st_drop_geometry()
+lake_corr <- select(lake, -c(date, site, source)) %>%
+  #filter(chl < 40) %>% 
+  st_drop_geometry()
 lake_cor <- rcorr(as.matrix(lake_corr), type = 'spearman')
 lake_cor$P[is.na(lake_cor$P)] <- 1
 
@@ -54,12 +55,12 @@ These tables show various measures of importance of variables to each model. Wit
 
 #### Lake Superior 
 ```{r rf_lake, echo=FALSE}
-importance <- measure_importance(lake_rf) %>%
-  mutate(mse_increase = round(mse_increase, 3),
-         mean_min_depth = round(mean_min_depth, 2),
-         node_purity_increase = round(node_purity_increase, 2)) %>%
-  select(-c(p_value, no_of_trees))
-datatable(importance)
+# importance <- measure_importance(lake_rf) %>%
+#   mutate(mse_increase = round(mse_increase, 3),
+#          mean_min_depth = round(mean_min_depth, 2),
+#          node_purity_increase = round(node_purity_increase, 2)) %>%
+#   select(-c(p_value, no_of_trees))
+datatable(lake_rf$importance)
 ```
 
 ## Plots of Chlorophyll vs everything else
@@ -115,15 +116,27 @@ ggplotly(lake %>%
 ## Maps!
 
 ```{r mapchl, echo=FALSE, fig.height=6}
-lakechl <- filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 10, NA, chl))
+lakechl <- filter(lake, !is.na(chl)) %>% mutate(chl = if_else(chl > 10, NA, chl)) %>% 
+  filter(date > ymd("2014-01-01")) %>% 
+  mutate(date2 = floor_date(date, unit = "week"))
+
 plotchl <-  ggplot() +
                theme_bw() +
                geom_sf(data = ls_crop) +
                geom_sf(data = lakechl, mapping = aes(color = chl), size = 7) +
                scale_color_gradient(low = "#d7f4cb", high = "darkgreen", na.value = "gray30") +
-               transition_states(date) +
-               labs(title = "CHL on {closest_state}")
-animate(plotchl, nframes = length(unique(lakechl$date)), fps = 5)
+               labs(title = "Chl a, week of {closest_state}", color = "Chl a (ug/L)") +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        legend.position = "inside",
+        legend.position.inside = c(.1,.8)) +
+  transition_states(date2)
+               
+animate(plotchl, nframes = length(unique(lakechl$date2)), fps = 3)
+
+
 ```
 ```{r maptss, echo=FALSE, fig.height=2}
 # plottss <-  ggplot() +

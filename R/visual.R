@@ -1,4 +1,4 @@
-s2_targets <- list(
+viz_targets <- list(
   
   # variable comparison
   
