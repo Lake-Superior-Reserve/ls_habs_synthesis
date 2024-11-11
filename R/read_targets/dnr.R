@@ -206,9 +206,10 @@ dnr_targets <- list(
                left_join(dnr_hydro_surf, by = join_by(station, date)) %>%
                mutate(depth = 0, source = "WDNR", type = "Lake",
                       site = str_c("site ", site, " - ", station, sep = ""),
-                      site = if_else(is.na(site), station, site)) %>% 
-               select(-station) %>% 
-               st_as_sf(coords = c("StationLongitude", "StationLatitude"), crs = st_crs(ls_shp)))
+                      site = if_else(is.na(site), station, site),
+                      latitude = as.numeric(StationLatitude),
+                      longitude = as.numeric(StationLongitude)) %>% 
+               select(-c(station, StationLatitude, StationLongitude)))
   
   
 )

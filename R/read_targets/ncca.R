@@ -53,24 +53,24 @@ ncca_targets <- list(
   #ncca cleaning
   tar_target(ncca20_sites_clean, ncca20_sites %>% 
                select(ncca = UNIQUE_ID, site = SITE_ID, latitude = LAT_DD83, longitude = LON_DD83) %>% 
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp), remove = FALSE)),
   tar_target(ncca15_sites_clean, ncca15_sites %>% 
                select(ncca = UNIQUE_ID, site = SITE_ID, latitude = LAT_DD83, longitude = LON_DD83) %>% 
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp), remove = FALSE)),
   tar_target(ncca10_sites_clean, ncca10_sites %>% 
                select(site = SITE_ID, latitude = ALAT_DD, longitude = ALON_DD) %>% 
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)) %>%
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp), remove = FALSE) %>%
                st_join(ncca20_sites_clean, st_is_within_distance, dist = 100) %>% # adding unique ID to sites if they're within 100 meters of a known site in 2015/2020
                st_join(ncca15_sites_clean, st_is_within_distance, dist = 100) %>%
                mutate(ncca.x = if_else(is.na(ncca.x) & !is.na(ncca.y), ncca.y, ncca.x)) %>% 
-               select(ncca = ncca.x, site = site.x)),
+               select(ncca = ncca.x, site = site.x, latitude = latitude.x, longitude = longitude.x)),
   tar_target(ncca10na_sites_clean, ncca10na_sites %>% 
                select(site = SITE_ID, latitude = ALAT_DD, longitude = ALON_DD) %>% 
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)) %>%
+               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp), remove = FALSE) %>%
                st_join(ncca20_sites_clean, st_is_within_distance, dist = 100) %>%
                st_join(ncca15_sites_clean, st_is_within_distance, dist = 100) %>%
                mutate(ncca.x = if_else(is.na(ncca.x) & !is.na(ncca.y), ncca.y, ncca.x)) %>% 
-               select(ncca = ncca.x, site = site.x)),
+               select(ncca = ncca.x, site = site.x, latitude = latitude.x, longitude = longitude.x)),
   
   tar_target(ncca20_secchi_clean, ncca20_secchi %>% 
                mutate(DATE_COL = mdy(DATE_COL)) %>% 
@@ -144,7 +144,8 @@ ncca_targets <- list(
                select(date = DATE_COL, site = SITE_ID, chl = CHLA, tn = NTL, no3 = NO3NO2,
                       nh3 = NH3, din = DIN, tp = PTL, po4 = SRP)),
   
-  tar_target(ncca_sites, bind_rows(ncca20_sites_clean, ncca15_sites_clean, ncca10_sites_clean, ncca10na_sites_clean)),
+  tar_target(ncca_sites, bind_rows(ncca20_sites_clean, ncca15_sites_clean, ncca10_sites_clean, ncca10na_sites_clean) %>% 
+               st_drop_geometry()),
   tar_target(ncca_secchi, bind_rows(ncca20_secchi_clean, ncca15_secchi_clean, ncca10_secchi_clean, ncca10na_secchi_clean)),
   tar_target(ncca_hydro, bind_rows(ncca20_hydro_clean, ncca15_hydro_clean, ncca10_hydro_clean, ncca10na_hydro_clean)),
   tar_target(ncca_chem, bind_rows(ncca20_chem_clean, ncca15_chem_clean, ncca10_chem_clean, ncca10na_chem_clean)),

@@ -101,8 +101,7 @@ nps_targets <- list(
                       longitude = longitude.x) %>%
                select(-c(latitude.y, longitude.y)) %>%
                mutate(source = "NPS", type = "Lake") %>%
-               arrange(date) %>%
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)))
+               arrange(date))
   
   
   

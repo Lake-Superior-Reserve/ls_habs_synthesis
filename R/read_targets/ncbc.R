@@ -75,8 +75,7 @@ ncbc_targets <- list(
                       date = force_tz(date, tzone = "America/Chicago"),
                       date = date(date)) %>% 
                left_join(cb_stations) %>% 
-               mutate(source = "NCBC", type = "Lake") %>%
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+               mutate(source = "NCBC", type = "Lake")),
   
   tar_target(cbtrib_tp_clean, cbtrib_tp %>% 
                mutate(date = str_c(Date, `Time (CDT)`, sep = " "),
@@ -105,8 +104,7 @@ ncbc_targets <- list(
                arrange(date) %>% 
                inner_join(cb_gages, by = join_by(site == Site_ID)) %>% #remove sites without discharge data
                select(date, site, station_nm = Site_Name, discharge, tp, tss, latitude = LAT_WGS84, longitude = LONG_WGS84) %>% 
-               mutate(source = "NCBS") %>% 
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp))),
+               mutate(source = "NCBC")),
   
   tar_target(cbq_s1, bind_rows(cbq_pco2, cbq_nfo2, cbq_bcc, cbq_sfcr) %>% 
                select(date = `Timestamp (UTC-05:00)`, site, discharge = Value) %>% 
@@ -125,8 +123,7 @@ ncbc_targets <- list(
                filter(!is.na(discharge)) %>% 
                left_join(cb_gages, by = join_by(site == Site_ID)) %>% 
                select(date, site, station_nm = Site_Name, discharge, latitude = LAT_WGS84, longitude = LONG_WGS84) %>% 
-               mutate(source = "NCBS") %>% 
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)))
+               mutate(source = "NCBC"))
   
   
   

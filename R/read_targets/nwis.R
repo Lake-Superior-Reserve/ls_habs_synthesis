@@ -58,8 +58,7 @@ nwis_targets <- list(
                filter(!duplicated(date_site)) %>% 
                select(-date_site) %>% 
                arrange(date) %>% 
-               left_join(nwis_sites) %>% 
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)))
+               left_join(nwis_sites))
   
   
   

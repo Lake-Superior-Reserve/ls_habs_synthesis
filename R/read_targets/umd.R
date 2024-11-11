@@ -128,7 +128,6 @@ umd_targets <- list(
   
   tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>%
                mutate(across(-c(source, type, site, depth, latitude, longitude), replace_nan)) %>%
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)) %>% 
                left_join(select(umd_troll_surf, -c(depth, tss, latitude, longitude))))
   
   

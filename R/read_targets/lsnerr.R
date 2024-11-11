@@ -150,8 +150,7 @@ lsnerr_targets <- list(
   
   tar_target(lsnerr, full_join(lkswq_dv, lksnut_dv) %>%
                left_join(nerr_stations) %>%
-               mutate(source = "LSNERR", type = "Estuary") %>% 
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)))
+               mutate(source = "LSNERR", type = "Estuary"))
   
   
   

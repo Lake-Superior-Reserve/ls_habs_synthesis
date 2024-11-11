@@ -231,7 +231,6 @@ wqp_targets <- list(
                       latitude = TADA.LatitudeMeasure, longitude = TADA.LongitudeMeasure, temp, do, do_sat, ph, cond, turb, trans_tube, secchi, discharge,
                       tss, tds, chl, pheo, toc, doc, ton, don, tdkn, tkn, tdn, tn, nh3, no3 = no23, tdp, tp, po4, cl, si) %>% #note that were calling nitrate/nitrite no3
                filter(!if_all(-c(date, source, type, site, latitude, longitude, temp), is.na)) %>% # drop rows with only temp
-               arrange(date) %>% 
-               st_as_sf(coords = c("longitude", "latitude"), crs = st_crs(ls_shp)))
+               arrange(date))
   
 )
