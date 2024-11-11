@@ -5,7 +5,7 @@
 _targets/
 scratch.R
 .DS_Store
-raw_data/wdnr/.DS_Store
+*.DS_Store
 raw_data/.DS_Store
 *.html
 *.pdf
