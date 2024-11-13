@@ -204,7 +204,8 @@ dnr_targets <- list(
                rename(date = StartDateTime, station = StationID, site = SiteID) %>% 
                mutate(site = if_else(station == "104", 6, site)) %>% # Per Ellen C 9/9/24, 104 is very close to 103, and 103 was not sampled that round, so assuming 104 is also site 6
                left_join(dnr_hydro_surf, by = join_by(station, date)) %>%
-               mutate(depth = 0, source = "WDNR", type = "Lake",
+               mutate(depth = 0, source = "WDNR", 
+                      type = if_else(site == "BLOOM_2023-09-21", "Estuary", "Lake"),
                       site = str_c("site ", site, " - ", station, sep = ""),
                       site = if_else(is.na(site), station, site),
                       latitude = as.numeric(StationLatitude),

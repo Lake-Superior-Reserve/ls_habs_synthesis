@@ -128,7 +128,9 @@ umd_targets <- list(
   
   tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>%
                mutate(across(-c(source, type, site, depth, latitude, longitude), replace_nan)) %>%
-               left_join(select(umd_troll_surf, -c(depth, tss, latitude, longitude))))
+               left_join(select(umd_troll_surf, -c(depth, tss, latitude, longitude))) %>% 
+               mutate(type = if_else(str_detect(site, "Barkers") | site == "Nemadji River ISCO", "Estuary", type),
+                      huc = if_else(type == "Watershed", "04010301", NA)))
   
   
   

@@ -100,7 +100,8 @@ nps_targets <- list(
                rename(latitude = latitude.x, # using coordinates from chem file, since they're consistent with other sonde data
                       longitude = longitude.x) %>%
                select(-c(latitude.y, longitude.y)) %>%
-               mutate(source = "NPS", type = "Lake") %>%
+               mutate(source = "NPS", 
+                      type = if_else(str_detect(site, "River"), "Tributary", "Lake")) %>%
                arrange(date))
   
   

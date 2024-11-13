@@ -6,8 +6,10 @@ tar_option_set(packages = c(read_packages))
 
 source("R/read.R")
 source("R/visual.R")
+source("R/analysis.R")
 
 list(
   read_targets,
-  viz_targets
+  viz_targets,
+  analysis_targets
 )

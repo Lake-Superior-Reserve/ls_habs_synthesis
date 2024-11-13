@@ -10,7 +10,7 @@ nwis_targets <- list(
                                        "04029990", "04001000") # too far east; isle royale
                ))),
   tar_target(nwis_sites, nwis_metadata %>% 
-               select(site = site_no, station_nm, latitude = dec_lat_va, longitude = dec_long_va, type = site_tp_cd) %>% 
+               select(site = site_no, station_nm, huc = huc_cd, latitude = dec_lat_va, longitude = dec_long_va, type = site_tp_cd) %>% 
                filter(!duplicated(site)) %>% 
                mutate(source = "USGS")),
   

@@ -104,7 +104,7 @@ ncbc_targets <- list(
                arrange(date) %>% 
                inner_join(cb_gages, by = join_by(site == Site_ID)) %>% #remove sites without discharge data
                select(date, site, station_nm = Site_Name, discharge, tp, tss, latitude = LAT_WGS84, longitude = LONG_WGS84) %>% 
-               mutate(source = "NCBC")),
+               mutate(source = "NCBC", huc = "04010301")),
   
   tar_target(cbq_s1, bind_rows(cbq_pco2, cbq_nfo2, cbq_bcc, cbq_sfcr) %>% 
                select(date = `Timestamp (UTC-05:00)`, site, discharge = Value) %>% 
@@ -123,7 +123,7 @@ ncbc_targets <- list(
                filter(!is.na(discharge)) %>% 
                left_join(cb_gages, by = join_by(site == Site_ID)) %>% 
                select(date, site, station_nm = Site_Name, discharge, latitude = LAT_WGS84, longitude = LONG_WGS84) %>% 
-               mutate(source = "NCBC"))
+               mutate(source = "NCBC", huc = "04010301", type = "ST"))
   
   
   

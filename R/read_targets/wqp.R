@@ -90,11 +90,14 @@ wqp_targets <- list(
     
     str_rename <- c("WIDNR_WQX-10048632", "USGS-040260078")
     wet_rename <- c("WIDNR_WQX-10048913", "WIDNR_WQX-10048916", "WIDNR_WQX-10048882", "WIDNR_WQX-10048911", "WIDNR_WQX-10048912")
+    lake_rename <- c("WIDNR_WQX-163403", "WIDNR_WQX-163404", "WIDNR_WQX-163405", "WIDNR_WQX-163126", "WIDNR_WQX-163060",
+                     "REDCLIFF_WQX-SC01", "REDCLIFF_WQX-SC02")
     
     if (id %in% gl_rename) return("Great Lake")
     else if (id %in% es_rename) return("Estuary")
     else if (id %in% str_rename) return("River/Stream")
     else if (id %in% wet_rename) return("Wetland")
+    else if (id %in% lake_rename) return("Lake")
     else if (name == "BEACH Program Site-Great Lake") return("Great Lake")
     else if (name == "Stream") return("River/Stream")
     else if (name == "Lake, Reservoir, Impoundment") return("Lake")
@@ -188,7 +191,7 @@ wqp_targets <- list(
   tar_target(wqp_wide, wqp_long %>% 
                filter(!(TADA.DepthCategory.Flag %in% c("Bottom", "Middle"))) %>% #assume surface if not specified
                select(TADA.ComparableDataIdentifier, ActivityStartDate, TADA.ResultMeasureValue, OrganizationIdentifier, MonitoringLocationTypeName,
-                      MonitoringLocationIdentifier, TADA.LatitudeMeasure, TADA.LongitudeMeasure) %>% 
+                      MonitoringLocationIdentifier, TADA.LatitudeMeasure, TADA.LongitudeMeasure, HUCEightDigitCode) %>% 
                pivot_wider(names_from = TADA.ComparableDataIdentifier, values_from = TADA.ResultMeasureValue, values_fn = ~ mean(.x, na.rm = TRUE)) %>%
                mutate(date = ymd(ActivityStartDate, tz = "America/Chicago"),
                       nh3 = rowMeans(across(c(`AMMONIA_FILTERED_AS N_MG/L`, `AMMONIA_UNFILTERED_AS N_MG/L`)), na.rm = TRUE), #combining filtered and unfiltered parameters where they shouldn't be split (ions, mislabeled chl)
@@ -228,9 +231,9 @@ wqp_targets <- list(
                       tdp = if_else(`TOTAL PHOSPHORUS, MIXED FORMS_UNFILTERED_AS P_MG/L` < `TOTAL PHOSPHORUS, MIXED FORMS_FILTERED_AS P_MG/L`, `TOTAL PHOSPHORUS, MIXED FORMS_UNFILTERED_AS P_MG/L`, `TOTAL PHOSPHORUS, MIXED FORMS_FILTERED_AS P_MG/L`)  
                ) %>% 
                select(date, source = OrganizationIdentifier, type = MonitoringLocationTypeName, site = MonitoringLocationIdentifier,
-                      latitude = TADA.LatitudeMeasure, longitude = TADA.LongitudeMeasure, temp, do, do_sat, ph, cond, turb, trans_tube, secchi, discharge,
+                      latitude = TADA.LatitudeMeasure, longitude = TADA.LongitudeMeasure, huc = HUCEightDigitCode, temp, do, do_sat, ph, cond, turb, trans_tube, secchi, discharge,
                       tss, tds, chl, pheo, toc, doc, ton, don, tdkn, tkn, tdn, tn, nh3, no3 = no23, tdp, tp, po4, cl, si) %>% #note that were calling nitrate/nitrite no3
-               filter(!if_all(-c(date, source, type, site, latitude, longitude, temp), is.na)) %>% # drop rows with only temp
+               filter(!if_all(-c(date, source, type, site, latitude, longitude, huc, temp), is.na)) %>% # drop rows with only temp
                arrange(date))
   
 )
