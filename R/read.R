@@ -96,15 +96,18 @@ read_targets <- list(
                bind_rows(filter(wqp_wide, type == "Estuary")) %>%
                mutate(npr = tn/tp,
                       cnr = toc/tn,
-                      cpr = toc/tp) %>% 
+                      cpr = toc/tp, 
+                      pnpr = pon/pp,
+                      pcnr = poc/pon,
+                      pcpr = poc/pp) %>% 
                group_by(date, latitude, longitude) %>% 
                summarise(across(c(site, source), ~first(.x)),
-                         across(c(chl, chl_field, tss, turb, cond, ph, temp, do, do_sat, 
-                                  doc, toc, tn, tdn, ton, don, no3, nh3, tp, tdp, po4, npr, cnr, cpr, si, cl),
+                         across(c(chl, chl_field, tss, turb, cond, ph, temp, do, do_sat,
+                                  doc, poc, toc, tn, tdn, ton, don, pon, no3, nh3, tp, tdp, pp, po4, npr, cnr, cpr, pnpr, pcnr, pcpr, si, cl),
                                 ~mean(.x, na.rm = TRUE))) %>% 
                ungroup() %>% 
-               mutate(across(c(chl, chl_field, tss, turb, cond, ph, temp, do, do_sat, 
-                               doc, toc, tn, tdn, ton, don, no3, nh3, tp, tdp, po4, npr, cnr, cpr, si, cl),
+               mutate(across(c(chl, chl_field, tss, turb, cond, ph, temp, do, do_sat,
+                               doc, poc, toc, tn, tdn, ton, don, pon, no3, nh3, tp, tdp, pp, po4, npr, cnr, cpr, pnpr, pcnr, pcpr, si, cl),
                              replace_nan)))
   
 )
