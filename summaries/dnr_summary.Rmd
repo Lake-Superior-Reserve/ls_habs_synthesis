@@ -62,6 +62,14 @@ dnr_round <- dnr %>%
   filter(!is.na(site)) %>% 
   mutate(date = floor_date(date, "week"))
 
+#bac
+lake_corr <- select(tar_read(dnr_bac_plus, store = "../_targets"), -c(date, site, station, latitude, longitude)) %>% 
+  select(where(~ sum(!is.na(.)) > 3))
+lake_cor <- rcorr(as.matrix(lake_corr), type = 'spearman')
+lake_cor$P[is.na(lake_cor$P)] <- 1
+corrplot(lake_cor$r, type = "lower", tl.cex = .5, p.mat = lake_cor$P, sig.level = 0.05, insig = 'blank', outline = T)
+
+
 ```
 
 ## Correlations between variables

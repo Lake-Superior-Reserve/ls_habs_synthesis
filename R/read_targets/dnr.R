@@ -198,19 +198,50 @@ dnr_targets <- list(
   tar_target(dnr_hydro_surf, bind_rows(dnr_hydro_19_surf, dnr_hydro_21_surf, dnr_hydro_22_surf, dnr_hydro_23_surf)), 
   
   #combine dnr files
-  tar_target(dnr, dnr_swims_clean %>% 
+  tar_target(dnr_s1, dnr_swims_clean %>% 
                left_join(dnr_stations, by = join_by(StationID)) %>% 
                left_join(dnr_sites, by = join_by(StationID)) %>% 
                rename(date = StartDateTime, station = StationID, site = SiteID) %>% 
                mutate(site = if_else(station == "104", 6, site)) %>% # Per Ellen C 9/9/24, 104 is very close to 103, and 103 was not sampled that round, so assuming 104 is also site 6
-               left_join(dnr_hydro_surf, by = join_by(station, date)) %>%
+               left_join(dnr_hydro_surf, by = join_by(station, date))),
+  tar_target(dnr, dnr_s1 %>%
                mutate(depth = 0, source = "WDNR", 
                       type = if_else(site == "BLOOM_2023-09-21", "Estuary", "Lake"),
                       site = str_c("site ", site, " - ", station, sep = ""),
                       site = if_else(is.na(site), station, site),
                       latitude = as.numeric(StationLatitude),
                       longitude = as.numeric(StationLongitude)) %>% 
-               select(-c(station, StationLatitude, StationLongitude)))
+               select(-c(station, StationLatitude, StationLongitude))),
   
+  #bac files
+  tar_target(dnr_bac_22, dnr_swims_22 %>% 
+    filter(Units == "NU/mL") %>% 
+    mutate(`Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
+           `Collection Start Date/Time` = ymd(`Collection Start Date/Time`, tz = "America/Chicago"),
+           `DNR Parameter Description` = str_split_i(`DNR Parameter Description`, " ", 1),
+           `DNR Parameter Description` = str_to_lower(`DNR Parameter Description`),
+           `Sample Location` = str_sub(`Sample Location`, -9, -2)) %>% 
+    select(StartDateTime = `Collection Start Date/Time`, StationID = `Sample Location`, `DNR Parameter Description`, `Numeric Value`) ),
   
+  tar_target(dnr_bac_23, dnr_swims_23 %>% 
+    filter(Units == "NU/mL") %>% 
+    mutate(`Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
+           `Collection Start Date/Time` = ymd(`Collection Start Date/Time`, tz = "America/Chicago"),
+           `Sample Location` = if_else(str_detect(`Sample Location`,"POPLAR"), str_c(`Sample Location`, " (STATION 101)"), `Sample Location`),
+           `Sample Location` = if_else(str_detect(`Sample Location`,"QUARRY"), str_c(`Sample Location`, " (BLOOM_2023-09-05)"), `Sample Location`),
+           `Sample Location` = str_split_i(`Sample Location`, "\\(", 2),
+           `Sample Location` = str_sub(`Sample Location`, 1, -2),
+           `Sample Location` = str_replace(`Sample Location`, "STATION ", ""),
+           `DNR Parameter Description` = str_split_i(`DNR Parameter Description`, " ", 1),
+           `DNR Parameter Description` = str_to_lower(`DNR Parameter Description`)) %>% 
+    select(StartDateTime = `Collection Start Date/Time`, StationID = `Sample Location`, `DNR Parameter Description`, `Numeric Value`)),
+  
+  tar_target(dnr_bac, bind_rows(dnr_bac_22, dnr_bac_23) %>% 
+    arrange(`DNR Parameter Description`) %>% 
+    pivot_wider(names_from = `DNR Parameter Description`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
+    arrange(StartDateTime, StationID) %>% 
+    rename(date = StartDateTime, station = StationID)),
+  
+  tar_target(dnr_bac_plus, inner_join(dnr_s1, dnr_bac) %>% 
+    relocate(date, site, station, latitude = StationLatitude, longitude = StationLongitude))
 )
