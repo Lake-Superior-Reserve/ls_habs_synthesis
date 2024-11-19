@@ -18,6 +18,8 @@ read_targets <- list(
   
   tar_target(write_file, function(df, name){
     filepath <- str_c("out/", name, ".csv")
+    df <- df %>% 
+      mutate(date = as.character(date))
     write_csv(df, filepath)
     return(filepath)
   }),
