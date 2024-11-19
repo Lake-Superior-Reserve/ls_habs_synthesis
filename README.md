@@ -1,6 +1,6 @@
 # LS HABS Synthesis Project
 
-This repository holds code to synthesize and analyze data on the Western arm of Lake Superior and its watershed in order to better understand the increasing frequency of harmful algal blooms. It is setup as an automated pipeline using the [`targets`](https://books.ropensci.org/targets/) R package in order to orchestrate a complex, modular workflow where dependency tracking determines which components need to be built. Currently, this pipeline will need 1-2 hours and an internet connection to build.
+This repository holds code to synthesize and analyze data on the Western arm of Lake Superior and its watershed in order to better understand the increasing frequency of harmful algal blooms. It is setup as an automated pipeline using the [`targets`](https://books.ropensci.org/targets/) R package in order to orchestrate a complex, modular workflow where dependency tracking determines which components need to be built. Currently, this pipeline will need 1-2 hours and an internet connection to build. See the "Running Pipeline" section below for steps.
 
 ## Structure
 
@@ -60,7 +60,7 @@ Currently, the core data sets have observations from 10/1/2010 - 12/31/2023. All
 
 ## Running Pipeline
 
-Just run the following snippet:
+Just run the following snippet (requires an internet connection and will take 1-2 hours to complete):
 
 ``` r
 # install required packages
@@ -70,6 +70,4 @@ remotes::install_github("USEPA/EPATADA", ref = "develop", dependencies = TRUE, f
 # build datasets
 targets::tar_make()
 ```
-
-
 
