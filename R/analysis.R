@@ -103,32 +103,28 @@ analysis_targets <- list(
 
   
   #scaled versions of main files -- don't scale if <5 observations of param at site (<10 per region)
-  tar_target(make_scaled, function(df, cols){
+  tar_target(make_scaled, function(df, cols, region = FALSE){
     id_cols <- c("date", "site", "latitude", "longitude", "source")
     if ("huc" %in% colnames(df)) id_cols <- c(id_cols, "huc")
     if ("region" %in% colnames(df)) id_cols <- c(id_cols, "region")
+    if (region) {
+      n <- 10
+      group_cols <- c("region")
+    }
+    else {
+      n <- 5
+      group_cols <- c("latitude", "longitude")
+    }
     df %>% 
-      group_by(latitude, longitude) %>%
-      mutate(across(all_of(cols), ~ sum(!is.na(.)) >=5, .names = "{.col}2")) %>% 
+      group_by(pick(all_of(group_cols))) %>%
+      mutate(across(all_of(cols), ~ sum(!is.na(.)) >=n, .names = "{.col}2")) %>% 
       ungroup() %>% 
       mutate(across(all_of(cols), ~if_else(get(paste0(deparse(substitute(.)), "2")), ., NA))) %>% 
-      group_by(latitude, longitude) %>%
+      group_by(pick(all_of(group_cols))) %>%
       mutate(across(all_of(cols), ~(scale(.) %>% as.vector))) %>% 
       ungroup() %>% 
-      select(all_of(id_cols), all_of(cols))
-  }),
-  tar_target(make_scaled_reg, function(df, cols){
-    id_cols <- c("date", "site", "latitude", "longitude", "source", "region")
-    if ("huc" %in% colnames(df)) id_cols <- c(id_cols, "huc")
-    df %>% 
-      group_by(region) %>%
-      mutate(across(all_of(cols), ~ sum(!is.na(.)) >=10, .names = "{.col}2")) %>% 
-      ungroup() %>% 
-      mutate(across(all_of(cols), ~if_else(get(paste0(deparse(substitute(.)), "2")), ., NA))) %>% 
-      group_by(region) %>%
-      mutate(across(all_of(cols), ~(scale(.) %>% as.vector))) %>% 
-      ungroup() %>% 
-      select(all_of(id_cols), all_of(cols))
+      select(all_of(id_cols), all_of(cols)) %>% 
+      filter(!if_all(-all_of(id_cols), is.na))
   }),
   tar_target(lake_scaled, make_scaled(lake_full, c("chl", "chl_field", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
                                                    "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
@@ -144,12 +140,12 @@ analysis_targets <- list(
 
   tar_target(lake_scaled_reg, make_scaled(lake_reg, c("chl", "chl_field", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
                                                    "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
-                                                   "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
+                                                   "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"), TRUE)),
   tar_target(trib_scaled_reg, make_scaled(trib_reg, c("discharge", "chl", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
                                                    "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
-                                                   "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
-  tar_target(trib_q_scaled_reg, make_scaled(trib_q_reg, c("discharge"))),
-  tar_target(trib_load_scaled_reg, make_scaled(trib_load, c("chl", "tss", "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4", "si", "cl"))),
+                                                   "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"), TRUE)),
+  tar_target(trib_q_scaled_reg, make_scaled(trib_q_reg, c("discharge"), TRUE)),
+  tar_target(trib_load_scaled_reg, make_scaled(trib_load, c("chl", "tss", "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4", "si", "cl"), TRUE)),
   
   tar_target(tpload_scaled, ls_tpload %>% 
                mutate(region = get_tpload_region(river)) %>% 
@@ -162,15 +158,23 @@ analysis_targets <- list(
   
   
   # week, month and year averages of scaled files
-  tar_target(make_year, function(df, reg = FALSE){
+  tar_target(group_time, function(df, time = c("year", "month", "week"), reg = FALSE){
     remove_cols <- c("date")
     if ("latitude" %in% colnames(df)) remove_cols = c(remove_cols, "latitude", "longitude")
-    df <- df %>% 
-      mutate(year = year(date))
+    if (time == "year") {
+      df <- df %>% 
+        mutate(year = year(date))
+    } else if (time == "month") {
+      df <- df %>% 
+        mutate(month = floor_date(date, "month")) 
+    } else {
+      df <- df %>% 
+        mutate(week = floor_date(date, "week"))
+    }
     if (reg){
-      df <- df %>% group_by(year, region)
+      df <- df %>% group_by(pick(all_of(time)), region)
     }else{
-      df <- df %>% group_by(year)
+      df <- df %>% group_by(pick(all_of(time)))
     }
     df <- df %>% 
       summarise(across(where(is.double), ~mean(.x, na.rm = TRUE))) %>% 
@@ -178,77 +182,44 @@ analysis_targets <- list(
       select(-all_of(remove_cols)) %>% 
       ungroup()
   }),
-  tar_target(make_month, function(df, reg = FALSE){
-    remove_cols <- c("date")
-    if ("latitude" %in% colnames(df)) remove_cols = c(remove_cols, "latitude", "longitude")
-    df <- df %>% 
-      mutate(month = floor_date(date, "month")) 
-    if (reg){
-      df <- df %>% group_by(month, region)
-    }else{
-      df <- df %>% group_by(month)
-    }
-    df <- df %>% 
-      summarise(across(where(is.double), ~mean(.x, na.rm = TRUE))) %>% 
-      mutate(across(where(is.double), replace_nan)) %>% 
-      select(-all_of(remove_cols)) %>% 
-      ungroup()
-  }),
-  tar_target(make_week, function(df, reg = FALSE){
-    remove_cols <- c("date")
-    if ("latitude" %in% colnames(df)) remove_cols = c(remove_cols, "latitude", "longitude")
-    df <- df %>% 
-      mutate(week = floor_date(date, "week"))
-    if (reg){
-      df <- df %>% group_by(week, region)
-    }else{
-      df <- df %>% group_by(week)
-    }
-    df <- df %>% 
-      summarise(across(where(is.double), ~mean(.x, na.rm = TRUE))) %>% 
-      mutate(across(where(is.double), replace_nan)) %>% 
-      select(-all_of(remove_cols)) %>% 
-      ungroup()
-  }),
+  tar_target(lake_year, group_time(lake_scaled, "year")),
+  tar_target(lake_month, group_time(lake_scaled, "month")),
+  tar_target(lake_week, group_time(lake_scaled, "week")),
+  tar_target(lake_year_reg, group_time(lake_scaled_reg, "year", TRUE)),
+  tar_target(lake_month_reg, group_time(lake_scaled_reg, "month", TRUE)),
+  tar_target(lake_week_reg, group_time(lake_scaled_reg, "week", TRUE)),
   
-  tar_target(lake_year, make_year(lake_scaled)),
-  tar_target(lake_month, make_month(lake_scaled)),
-  tar_target(lake_week, make_week(lake_scaled)),
-  tar_target(lake_year_reg, make_year(lake_scaled_reg, TRUE)),
-  tar_target(lake_month_reg, make_month(lake_scaled_reg, TRUE)),
-  tar_target(lake_week_reg, make_week(lake_reg, TRUE)),
+  tar_target(est_year, group_time(est_scaled, "year")),
+  tar_target(est_month, group_time(est_scaled, "month")),
+  tar_target(est_week, group_time(est_scaled, "week")),
   
-  tar_target(est_year, make_year(est_scaled)),
-  tar_target(est_month, make_month(est_scaled)),
-  tar_target(est_week, make_week(est_scaled)),
+  tar_target(trib_year, group_time(trib_scaled, "year")),
+  tar_target(trib_month, group_time(trib_scaled, "month")),
+  tar_target(trib_week, group_time(trib_scaled, "week")),
+  tar_target(trib_year_reg, group_time(trib_scaled_reg, "year", TRUE)),
+  tar_target(trib_month_reg, group_time(trib_scaled_reg, "month", TRUE)),
+  tar_target(trib_week_reg, group_time(trib_scaled_reg, "week", TRUE)),
   
-  tar_target(trib_year, make_year(trib_scaled)),
-  tar_target(trib_month, make_month(trib_scaled)),
-  tar_target(trib_week, make_week(trib_scaled)),
-  tar_target(trib_year_reg, make_year(trib_scaled_reg, TRUE)),
-  tar_target(trib_month_reg, make_month(trib_scaled_reg, TRUE)),
-  tar_target(trib_week_reg, make_week(trib_reg, TRUE)),
+  tar_target(trib_q_year, group_time(trib_q_scaled, "year")),
+  tar_target(trib_q_month, group_time(trib_q_scaled, "month")),
+  tar_target(trib_q_week, group_time(trib_q_scaled, "week")),
+  tar_target(trib_q_year_reg, group_time(trib_q_scaled_reg, "year", TRUE)),
+  tar_target(trib_q_month_reg, group_time(trib_q_scaled_reg, "month", TRUE)),
+  tar_target(trib_q_week_reg, group_time(trib_q_scaled_reg, "week", TRUE)),
   
-  tar_target(trib_q_year, make_year(trib_q_scaled)),
-  tar_target(trib_q_month, make_month(trib_q_scaled)),
-  tar_target(trib_q_week, make_week(trib_q_scaled)),
-  tar_target(trib_q_year_reg, make_year(trib_q_scaled_reg, TRUE)),
-  tar_target(trib_q_month_reg, make_month(trib_q_scaled_reg, TRUE)),
-  tar_target(trib_q_week_reg, make_week(trib_q_reg, TRUE)),
-  
-  tar_target(trib_load_year, make_year(trib_load_scaled)),
-  tar_target(trib_load_month, make_month(trib_load_scaled)),
-  tar_target(trib_load_week, make_week(trib_load_scaled)),
-  tar_target(trib_load_year_reg, make_year(trib_load_scaled_reg, TRUE)),
-  tar_target(trib_load_month_reg, make_month(trib_load_scaled_reg, TRUE)),
-  tar_target(trib_load_week_reg, make_week(trib_load, TRUE)),
+  tar_target(trib_load_year, group_time(trib_load_scaled, "year")),
+  tar_target(trib_load_month, group_time(trib_load_scaled, "month")),
+  tar_target(trib_load_week, group_time(trib_load_scaled, "week")),
+  tar_target(trib_load_year_reg, group_time(trib_load_scaled_reg, "year", TRUE)),
+  tar_target(trib_load_month_reg, group_time(trib_load_scaled_reg, "month", TRUE)),
+  tar_target(trib_load_week_reg, group_time(trib_load_scaled_reg, "week", TRUE)),
 
-  tar_target(tpload_year, make_year(tpload_scaled)),
-  tar_target(tpload_month, make_month(tpload_scaled)),
-  tar_target(tpload_week, make_week(tpload_scaled)),
-  tar_target(tpload_year_reg, make_year(tpload_scaled, TRUE)),
-  tar_target(tpload_month_reg, make_month(tpload_scaled, TRUE)),
-  tar_target(tpload_week_reg, make_week(tpload_scaled, TRUE)),
+  tar_target(tpload_year, group_time(tpload_scaled, "year")),
+  tar_target(tpload_month, group_time(tpload_scaled, "month")),
+  tar_target(tpload_week, group_time(tpload_scaled, "week")),
+  tar_target(tpload_year_reg, group_time(tpload_scaled, "year", TRUE)),
+  tar_target(tpload_month_reg, group_time(tpload_scaled, "month", TRUE)),
+  tar_target(tpload_week_reg, group_time(tpload_scaled, "week", TRUE)),
   
   
   
@@ -302,8 +273,8 @@ analysis_targets <- list(
                summarise(temp = mean(wtemp_c, na.rm = TRUE)) %>% 
                mutate(across(temp, replace_nan))),
   
-  tar_target(nbdc_temp_month, make_month(nbdc_temp)),
-  tar_target(nbdc_temp_week, make_week(nbdc_temp)),
+  tar_target(nbdc_temp_month, group_time(nbdc_temp, "month")),
+  tar_target(nbdc_temp_week, group_time(nbdc_temp, "week")),
   
   tar_target(temp_week_lag, make_lag(nbdc_temp_week, c("temp"), 8) %>% 
                mutate(temp_lag2_cum = rowMeans(data.frame(temp_lag1, temp_lag2), na.rm = TRUE),
