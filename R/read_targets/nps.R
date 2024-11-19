@@ -101,7 +101,9 @@ nps_targets <- list(
                       longitude = longitude.x) %>%
                select(-c(latitude.y, longitude.y)) %>%
                mutate(source = "NPS", 
-                      type = if_else(str_detect(site, "River"), "Tributary", "Lake")) %>%
+                      site = if_else(site == "SIW Nearshore-Offshore_4", "Sand Island West", site),
+                      type = if_else(str_detect(site, "River"), "Tributary", "Lake"),
+                      huc = if_else(type == "Tributary", "04010301", NA)) %>%
                arrange(date))
   
   

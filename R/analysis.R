@@ -10,58 +10,122 @@ analysis_targets <- list(
   tar_target(est_sf, make_sf(est_full)),
   tar_target(trib_q_sf, make_sf(trib_q)),
   
-  #CB and WI coast versions of files
-  tar_target(make_lake_west, function(df){
-    df %>% 
-      filter(longitude < -91 | (latitude > 46.75 & longitude < -90.85)) %>% 
-      filter(!str_detect(site, "MN") & year(date) > 2010)
-  }),
-  tar_target(make_lake_cb, function(df){
-    df %>% 
-      filter(longitude > -91 & latitude < 46.75 & longitude < -90.73)
-  }),
-  tar_target(make_trib_west, function(df){
-    df %>% 
-      filter(huc == "04010301" & longitude > -92.3) %>% 
-      filter(longitude < -91.2 | (latitude > 46.76 & longitude < -90.86))
-  }),
-  tar_target(make_trib_cb, function(df){
-    df %>% 
-      filter(huc == "04010301" & longitude > -91.2 & latitude < 46.76) 
-  }),
-  tar_target(make_trib_stl, function(df){
-    df %>% 
-      filter(huc %in% c("04010201", "04010202") & latitude < 46.9 & longitude > -92.7)
-  }),
-  tar_target(lake_west, make_lake_west(lake_full)),
-  tar_target(lake_cb, make_lake_cb(lake_full)),
-  tar_target(trib_west, make_trib_west(trib_full)),
-  tar_target(trib_cb, make_trib_cb(trib_full)),
-  tar_target(trib_stl, make_trib_stl(trib_full)),
-  tar_target(trib_q_west, make_trib_west(trib_q)),
-  tar_target(trib_q_cb, make_trib_cb(trib_q)),
-  tar_target(trib_q_stl, make_trib_stl(trib_q)),
+  #assign region to sites
+  tar_target(get_region, Vectorize(function(lat, long, huc = ""){
+    if (huc == "04010102" | 
+        (huc == "" & 
+         ((lat > 46.78 & long < -91.63) |
+          (lat > 47 & long < -91.1)))) {
+      if (long < -92) return("les")
+      else if (lat < 46.9 & long < -91.99) return("les")
+      else if (long < -91.83) return("suc")
+      else if (lat < 46.9) return("") #LLO buoy
+      else if (long < -91.72) return("kni")
+      else if (lat < 47.15 & long < -91.55) return("two")
+      else if (lat < 47.24 & long < -91.42) return("goo")
+      else if (lat < 47.24 & long < -91.39) return("spl")
+      else if (lat < 47.3 & long < -91.44) return("spl")
+      else if (lat < 47.1) return("") #far offshore mnpca site
+      else if (long < -91.25) return("bea")
+      else if (long < -91.2) return("pal")
+      else return("")
+    }
+    else if (huc %in% c("04010201", "04010202") | 
+             (huc == "" & 
+              (lat > 46.72 & long < -91.99))) {
+      if (lat < 46.9 & long > -92.7) return("stl")
+      else return("")
+    }
+    else if (huc == "04010301" | 
+             (huc == "" & 
+              (long < -90.73))) {
+      if (long > -91.2 & lat < 46.76) return("cb")
+      else if (lat > 46.7 & long < -92.02) return("stl")
+      else if (long < -92.3) return("") # drop way upstream nemadji sites
+      else if (long < -92) return("nem")
+      else if (lat > 46.55 & long < -91.95) return("nem")
+      else if (lat > 46.6 & long < -91.92) return("dut")
+      else if (long < -91.9) return("amn")
+      else if (lat > 46.6 & long < -91.84) return("amn")
+      else if (long < -91.75) return("pop")
+      else if (long < -91.65) return("pea")
+      else if (long < -91.5) return("bb")
+      else if (long < -91.4 & lat > 46.74) return("iro")
+      else if (long < -91.3 & lat < 46.72) return("") # drop sites upstream of orienta flowage
+      else if (long < -91.38 & lat < 46.79) return("") # drop bibon lake
+      else if (long < -91.28) return("fla")
+      else if (long < -91.21) return("cra")
+      else if (long < -91.195 & lat > 46.845) return("") # drop bark bay slough
+      else if (long < -91.14) return("bar")
+      else if (lat < 46.802 & long < -91.02) return("") # drop siskit lakes
+      else if (long < -91.02 & lat < 46.96) return("sis")
+      else if (long < -90.86 & lat < 46.96) return("san")
+      else if (long < -90.81 & lat > 46.91 & lat < 46.96) return("ras")
+      else if (long > -90.6) return("")
+      else if (lat > 46.9 & lat < 46.94) return("fro")
+      else if (lat > 46.8 & lat < 46.9) return("red")
+      else return("")
+    }
+    else if (huc == "04010302" | 
+             (huc == "" & 
+              (long > -90.73 & lat < 46.75))) {
+      if (lat > 46.65 & long < -90.65) return("")
+      else if (lat > 46.485 & long > -90.91 & long < -90.6) return("bad")
+      else return("") # drops way upstream bad river sites
+    }
+    else return("")
+  })),
+  tar_target(get_tpload_region, Vectorize(function(river){
+    if (river == "Amnicon River") return("amn")
+    else if (river == "Bad") return("bad")
+    else if (river == "Bois Brule River") return("bb")
+    else if (river == "Nemadji River") return("nem")
+    else if (river == "StLouis") return("stl")
+    else return("")
+  })),
+  tar_target(lake_reg, lake_full %>% 
+               mutate(region = get_region(latitude, longitude)) %>% 
+               filter(region != "")),
+  tar_target(trib_reg, trib_full %>% 
+               mutate(region = get_region(latitude, longitude, huc)) %>% 
+               filter(region != "")),
+  tar_target(trib_q_reg, trib_q %>% 
+               mutate(region = get_region(latitude, longitude, huc))  %>% 
+               filter(region != "")),
+  
   
   # trib load
-  tar_target(trib_load, trib_full %>% 
+  tar_target(trib_load, trib_reg %>% 
                filter(!is.na(discharge)) %>% 
                mutate(across(c(chl, tss, doc, poc, toc, tn, tdn, ton, don, pon, no3, nh3, tp, tdp, pp, po4, si, cl), 
                              ~ discharge * 28.31685 * .)) %>% 
                select(-c(turb, cond, ph, temp, do, do_sat, npr, cnr, cpr, pnpr, pcnr, pcpr))),
-  tar_target(trib_load_west, make_trib_west(trib_load)),
-  tar_target(trib_load_cb, make_trib_cb(trib_load)),
-  tar_target(trib_load_stl, make_trib_stl(trib_load)),
+
   
-  #scaled versions of main files -- don't scale if <5 observations of param at site
+  #scaled versions of main files -- don't scale if <5 observations of param at site (<10 per region)
   tar_target(make_scaled, function(df, cols){
     id_cols <- c("date", "site", "latitude", "longitude", "source")
     if ("huc" %in% colnames(df)) id_cols <- c(id_cols, "huc")
+    if ("region" %in% colnames(df)) id_cols <- c(id_cols, "region")
     df %>% 
       group_by(latitude, longitude) %>%
       mutate(across(all_of(cols), ~ sum(!is.na(.)) >=5, .names = "{.col}2")) %>% 
       ungroup() %>% 
       mutate(across(all_of(cols), ~if_else(get(paste0(deparse(substitute(.)), "2")), ., NA))) %>% 
       group_by(latitude, longitude) %>%
+      mutate(across(all_of(cols), ~(scale(.) %>% as.vector))) %>% 
+      ungroup() %>% 
+      select(all_of(id_cols), all_of(cols))
+  }),
+  tar_target(make_scaled_reg, function(df, cols){
+    id_cols <- c("date", "site", "latitude", "longitude", "source", "region")
+    if ("huc" %in% colnames(df)) id_cols <- c(id_cols, "huc")
+    df %>% 
+      group_by(region) %>%
+      mutate(across(all_of(cols), ~ sum(!is.na(.)) >=10, .names = "{.col}2")) %>% 
+      ungroup() %>% 
+      mutate(across(all_of(cols), ~if_else(get(paste0(deparse(substitute(.)), "2")), ., NA))) %>% 
+      group_by(region) %>%
       mutate(across(all_of(cols), ~(scale(.) %>% as.vector))) %>% 
       ungroup() %>% 
       select(all_of(id_cols), all_of(cols))
@@ -77,72 +141,82 @@ analysis_targets <- list(
                                                  "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
   tar_target(trib_q_scaled, make_scaled(trib_q, c("discharge"))),
   tar_target(trib_load_scaled, make_scaled(trib_load, c("chl", "tss", "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4", "si", "cl"))),
+
+  tar_target(lake_scaled_reg, make_scaled(lake_reg, c("chl", "chl_field", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
+                                                   "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
+                                                   "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
+  tar_target(trib_scaled_reg, make_scaled(trib_reg, c("discharge", "chl", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
+                                                   "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
+                                                   "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
+  tar_target(trib_q_scaled_reg, make_scaled(trib_q_reg, c("discharge"))),
+  tar_target(trib_load_scaled_reg, make_scaled(trib_load, c("chl", "tss", "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4", "si", "cl"))),
   
   tar_target(tpload_scaled, ls_tpload %>% 
-               group_by(river) %>%
+               mutate(region = get_tpload_region(river)) %>% 
+               group_by(region) %>%
                mutate(across(c(tp_load),
                              ~(scale(.) %>% as.vector))) %>% 
                ungroup() %>% 
-               select(date, river, tp_load)),
-  tar_target(tpload_west_scaled, tpload_scaled %>% 
-               filter(river %in% c("Amnicon River", "Bois Brule River", "Nemadji River"))),
-  tar_target(tpload_stl_scaled, tpload_scaled %>% 
-               filter(river %in% c("StLouis"))),
+               select(date, region, tp_load)),
   
-  tar_target(lake_west_scaled, make_lake_west(lake_scaled)),
-  tar_target(lake_cb_scaled, make_lake_cb(lake_scaled)),
-  tar_target(trib_west_scaled, make_trib_west(trib_scaled)),
-  tar_target(trib_cb_scaled, make_trib_cb(trib_scaled)),
-  tar_target(trib_stl_scaled, make_trib_stl(trib_scaled)),
-  tar_target(trib_q_west_scaled, make_trib_west(trib_q_scaled)),
-  tar_target(trib_q_cb_scaled, make_trib_cb(trib_q_scaled)),
-  tar_target(trib_q_stl_scaled, make_trib_stl(trib_q_scaled)),
-  tar_target(trib_load_west_scaled, make_trib_west(trib_load_scaled)),
-  tar_target(trib_load_cb_scaled, make_trib_cb(trib_load_scaled)),
-  tar_target(trib_load_stl_scaled, make_trib_stl(trib_load_scaled)),
   
   
   # week, month and year averages of scaled files
-  tar_target(make_year, function(df){
+  tar_target(make_year, function(df, reg = FALSE){
     remove_cols <- c("date")
     if ("latitude" %in% colnames(df)) remove_cols = c(remove_cols, "latitude", "longitude")
-    df %>% 
-      mutate(year = year(date)) %>% 
-      group_by(year) %>% 
+    df <- df %>% 
+      mutate(year = year(date))
+    if (reg){
+      df <- df %>% group_by(year, region)
+    }else{
+      df <- df %>% group_by(year)
+    }
+    df <- df %>% 
       summarise(across(where(is.double), ~mean(.x, na.rm = TRUE))) %>% 
       mutate(across(where(is.double), replace_nan)) %>% 
-      select(-all_of(remove_cols))
+      select(-all_of(remove_cols)) %>% 
+      ungroup()
   }),
-  tar_target(make_month, function(df){
+  tar_target(make_month, function(df, reg = FALSE){
     remove_cols <- c("date")
     if ("latitude" %in% colnames(df)) remove_cols = c(remove_cols, "latitude", "longitude")
-    df %>% 
-      mutate(month = floor_date(date, "month")) %>%
-      group_by(month) %>% 
+    df <- df %>% 
+      mutate(month = floor_date(date, "month")) 
+    if (reg){
+      df <- df %>% group_by(month, region)
+    }else{
+      df <- df %>% group_by(month)
+    }
+    df <- df %>% 
       summarise(across(where(is.double), ~mean(.x, na.rm = TRUE))) %>% 
-      mutate(across(where(is.double), replace_nan)) %>%
-      select(-all_of(remove_cols))
+      mutate(across(where(is.double), replace_nan)) %>% 
+      select(-all_of(remove_cols)) %>% 
+      ungroup()
   }),
-  tar_target(make_week, function(df){
+  tar_target(make_week, function(df, reg = FALSE){
     remove_cols <- c("date")
     if ("latitude" %in% colnames(df)) remove_cols = c(remove_cols, "latitude", "longitude")
-    df %>% 
-      mutate(week = floor_date(date, "week")) %>%
-      group_by(week) %>% 
+    df <- df %>% 
+      mutate(week = floor_date(date, "week"))
+    if (reg){
+      df <- df %>% group_by(week, region)
+    }else{
+      df <- df %>% group_by(week)
+    }
+    df <- df %>% 
       summarise(across(where(is.double), ~mean(.x, na.rm = TRUE))) %>% 
-      mutate(across(where(is.double), replace_nan)) %>%
-      select(-all_of(remove_cols))
+      mutate(across(where(is.double), replace_nan)) %>% 
+      select(-all_of(remove_cols)) %>% 
+      ungroup()
   }),
   
   tar_target(lake_year, make_year(lake_scaled)),
   tar_target(lake_month, make_month(lake_scaled)),
   tar_target(lake_week, make_week(lake_scaled)),
-  tar_target(lake_west_year, make_year(lake_west_scaled)),
-  tar_target(lake_west_month, make_month(lake_west_scaled)),
-  tar_target(lake_west_week, make_week(lake_west_scaled)),
-  tar_target(lake_cb_year, make_year(lake_cb_scaled)),
-  tar_target(lake_cb_month, make_month(lake_cb_scaled)),
-  tar_target(lake_cb_week, make_week(lake_cb_scaled)),
+  tar_target(lake_year_reg, make_year(lake_scaled_reg, TRUE)),
+  tar_target(lake_month_reg, make_month(lake_scaled_reg, TRUE)),
+  tar_target(lake_week_reg, make_week(lake_reg, TRUE)),
   
   tar_target(est_year, make_year(est_scaled)),
   tar_target(est_month, make_month(est_scaled)),
@@ -151,51 +225,31 @@ analysis_targets <- list(
   tar_target(trib_year, make_year(trib_scaled)),
   tar_target(trib_month, make_month(trib_scaled)),
   tar_target(trib_week, make_week(trib_scaled)),
-  tar_target(trib_west_year, make_year(trib_west_scaled)),
-  tar_target(trib_west_month, make_month(trib_west_scaled)),
-  tar_target(trib_west_week, make_week(trib_west_scaled)),
-  tar_target(trib_cb_year, make_year(trib_cb_scaled)),
-  tar_target(trib_cb_month, make_month(trib_cb_scaled)),
-  tar_target(trib_cb_week, make_week(trib_cb_scaled)),
-  tar_target(trib_stl_year, make_year(trib_stl_scaled)),
-  tar_target(trib_stl_month, make_month(trib_stl_scaled)),
-  tar_target(trib_stl_week, make_week(trib_stl_scaled)),
+  tar_target(trib_year_reg, make_year(trib_scaled_reg, TRUE)),
+  tar_target(trib_month_reg, make_month(trib_scaled_reg, TRUE)),
+  tar_target(trib_week_reg, make_week(trib_reg, TRUE)),
   
   tar_target(trib_q_year, make_year(trib_q_scaled)),
   tar_target(trib_q_month, make_month(trib_q_scaled)),
   tar_target(trib_q_week, make_week(trib_q_scaled)),
-  tar_target(trib_q_west_year, make_year(trib_q_west_scaled)),
-  tar_target(trib_q_west_month, make_month(trib_q_west_scaled)),
-  tar_target(trib_q_west_week, make_week(trib_q_west_scaled)),
-  tar_target(trib_q_cb_year, make_year(trib_q_cb_scaled)),
-  tar_target(trib_q_cb_month, make_month(trib_q_cb_scaled)),
-  tar_target(trib_q_cb_week, make_week(trib_q_cb_scaled)),
-  tar_target(trib_q_stl_year, make_year(trib_q_stl_scaled)),
-  tar_target(trib_q_stl_month, make_month(trib_q_stl_scaled)),
-  tar_target(trib_q_stl_week, make_week(trib_q_stl_scaled)),
+  tar_target(trib_q_year_reg, make_year(trib_q_scaled_reg, TRUE)),
+  tar_target(trib_q_month_reg, make_month(trib_q_scaled_reg, TRUE)),
+  tar_target(trib_q_week_reg, make_week(trib_q_reg, TRUE)),
   
   tar_target(trib_load_year, make_year(trib_load_scaled)),
   tar_target(trib_load_month, make_month(trib_load_scaled)),
   tar_target(trib_load_week, make_week(trib_load_scaled)),
-  tar_target(trib_load_west_year, make_year(trib_load_west_scaled)),
-  tar_target(trib_load_west_month, make_month(trib_load_west_scaled)),
-  tar_target(trib_load_west_week, make_week(trib_load_west_scaled)),
-  tar_target(trib_load_cb_year, make_year(trib_load_cb_scaled)),
-  tar_target(trib_load_cb_month, make_month(trib_load_cb_scaled)),
-  tar_target(trib_load_cb_week, make_week(trib_load_cb_scaled)),
-  tar_target(trib_load_stl_year, make_year(trib_load_stl_scaled)),
-  tar_target(trib_load_stl_month, make_month(trib_load_stl_scaled)),
-  tar_target(trib_load_stl_week, make_week(trib_load_stl_scaled)),
+  tar_target(trib_load_year_reg, make_year(trib_load_scaled_reg, TRUE)),
+  tar_target(trib_load_month_reg, make_month(trib_load_scaled_reg, TRUE)),
+  tar_target(trib_load_week_reg, make_week(trib_load, TRUE)),
 
   tar_target(tpload_year, make_year(tpload_scaled)),
   tar_target(tpload_month, make_month(tpload_scaled)),
   tar_target(tpload_week, make_week(tpload_scaled)),
-  tar_target(tpload_west_year, make_year(tpload_west_scaled)),
-  tar_target(tpload_west_month, make_month(tpload_west_scaled)),
-  tar_target(tpload_west_week, make_week(tpload_west_scaled)),
-  tar_target(tpload_stl_year, make_year(tpload_stl_scaled)),
-  tar_target(tpload_stl_month, make_month(tpload_stl_scaled)),
-  tar_target(tpload_stl_week, make_week(tpload_stl_scaled)),
+  tar_target(tpload_year_reg, make_year(tpload_scaled, TRUE)),
+  tar_target(tpload_month_reg, make_month(tpload_scaled, TRUE)),
+  tar_target(tpload_week_reg, make_week(tpload_scaled, TRUE)),
+  
   
   
   
@@ -222,74 +276,23 @@ analysis_targets <- list(
   tar_target(trib_week_lag, make_lag(trib_week, c("discharge", "chl", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
                                                   "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
                                                   "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
-  tar_target(trib_west_week_lag, make_lag(trib_west_week, c("discharge", "chl", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
-                                                            "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
-                                                            "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
-  tar_target(trib_cb_week_lag, make_lag(trib_cb_week, c("discharge", "chl", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
-                                                        "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
-                                                        "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
-  tar_target(trib_stl_week_lag, make_lag(trib_stl_week, c("discharge", "chl", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
-                                                          "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
-                                                          "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
   
   tar_target(trib_load_week_lag, make_lag(trib_load_week, c("chl", "tss", "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4", "si", "cl"))),
-  tar_target(trib_load_west_week_lag, make_lag(trib_load_west_week, c("chl", "tss", "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4", "si", "cl"))),
-  tar_target(trib_load_cb_week_lag, make_lag(trib_load_cb_week, c("chl", "tss", "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4", "si", "cl"))),
-  tar_target(trib_load_stl_week_lag, make_lag(trib_load_stl_week, c("chl", "tss", "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4", "si", "cl"))),
   
   tar_target(trib_q_week_lag, make_lag(trib_q_week, c("discharge"), 8)),
-  tar_target(trib_q_west_week_lag, make_lag(trib_q_west_week, c("discharge"), 8)),
-  tar_target(trib_q_cb_week_lag, make_lag(trib_q_cb_week, c("discharge"), 8)),
-  tar_target(trib_q_stl_week_lag, make_lag(trib_q_stl_week, c("discharge"), 8)),
   
   tar_target(tpload_week_lag, make_lag(tpload_week, c("tp_load"), 8)),
-  tar_target(tpload_west_week_lag, make_lag(tpload_west_week, c("tp_load"), 8)),
-  tar_target(tpload_stl_week_lag, make_lag(tpload_stl_week, c("tp_load"), 8)),
   
+  tar_target(trib_week_lag_reg, make_lag(trib_week_reg, c("discharge", "chl", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
+                                                  "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
+                                                  "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl"))),
   
-  # west region tp load
-  tar_target(trib_west_tp_load, trib_load_west %>% 
-               filter(site %in% c("04026005", "04026160") & year(date) > 2020) %>% 
-               mutate(discharge = if_else(is.na(discharge), 0, discharge),
-                      tp = if_else(is.na(tp), 0, tp)) %>% 
-               group_by(date) %>% 
-               summarise(tp_load = sum(tp), discharge_tot = sum(discharge))),
+  tar_target(trib_load_week_lag_reg, make_lag(trib_load_week_reg, c("chl", "tss", "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4", "si", "cl"))),
   
-  tar_target(trib_west_tp_year, trib_west_tp_load %>% 
-               mutate(year = year(date)) %>%
-               group_by(year) %>% 
-               mutate(tp_load = cumsum(tp_load), discharge_tot = cumsum(discharge_tot)) %>% 
-               ungroup()),
-  tar_target(trib_west_tp_month, trib_west_tp_load %>% 
-               mutate(month = floor_date(date, "month")) %>%
-               group_by(month) %>% 
-               mutate(tp_load = cumsum(tp_load), discharge_tot = cumsum(discharge_tot)) %>% 
-               ungroup()),
-  tar_target(trib_west_tp_week, trib_west_tp_load %>% 
-               mutate(week = floor_date(date, "week")) %>%
-               group_by(week) %>% 
-               mutate(tp_load = cumsum(tp_load), discharge_tot = cumsum(discharge_tot)) %>% 
-               ungroup()),
+  tar_target(trib_q_week_lag_reg, make_lag(trib_q_week_reg, c("discharge"), 8)),
   
-  tar_target(trib_west_tp_year_sum, trib_west_tp_year %>%
-               group_by(year) %>% 
-               summarise(tp_load = max(tp_load), discharge_tot = max(discharge_tot), n = sum(tp_load != 0))),
-  tar_target(trib_west_tp_month_sum, trib_west_tp_month %>% 
-               group_by(month) %>% 
-               summarise(tp_load = max(tp_load), discharge_tot = max(discharge_tot), n = sum(tp_load != 0))),
-  tar_target(trib_west_tp_week_sum, trib_west_tp_week %>% 
-               group_by(week) %>% 
-               summarise(tp_load = max(tp_load), discharge_tot = max(discharge_tot), n = sum(tp_load != 0))),
+  tar_target(tpload_week_lag_reg, make_lag(tpload_week_reg, c("tp_load"), 8)),
   
-  tar_target(trib_west_tp_week_lag, make_lag(trib_west_tp_week_sum, c("tp_load"), 8) %>% 
-               mutate(tp_lag2_cum = tp_load_lag1 + tp_load_lag2,
-                      tp_lag3_cum = tp_lag2_cum + tp_load_lag3,
-                      tp_lag4_cum = tp_lag3_cum + tp_load_lag4,
-                      tp_lag5_cum = tp_lag4_cum + tp_load_lag5,
-                      tp_lag6_cum = tp_lag5_cum + tp_load_lag6,
-                      tp_lag7_cum = tp_lag6_cum + tp_load_lag7,
-                      tp_lag8_cum = tp_lag7_cum + tp_load_lag8) %>% 
-               select(-n)),
   
   
   # get degree day temp from buoy file
@@ -354,27 +357,23 @@ analysis_targets <- list(
                select(-n)),
   
   
-  # combined week/month means plus lag dd and q
-  tar_target(lake_west_week_plus, trib_q_west_week_lag %>% 
-               #left_join(tpload_west_week_lag) %>% 
-               left_join(trib_west_tp_week_lag) %>% 
-               left_join(dd_week_lag) %>% 
-               left_join(lake_west_week)),
-  tar_target(lake_cb_week_plus, trib_q_cb_week_lag %>% 
-               left_join(dd_week_lag) %>% 
-               left_join(lake_cb_week)),
+  #joining together
   
-  
-  tar_target(lake_week_q_dd, trib_q_week_lag %>% 
-               left_join(dd_week_lag) %>% 
-               left_join(lake_week)),
-  tar_target(lake_week_q_temp, trib_q_week_lag %>% 
-               left_join(temp_week_lag) %>% 
-               left_join(lake_week)),
-  
-  #tp lag and lake week
-  tar_target(lake_week_tp, tpload_week_lag %>% 
-               left_join(lake_week))
+  tar_target(week_reg, left_join(lake_week_reg, trib_week_reg, by = join_by(week, region)) %>% 
+               left_join(trib_q_week_reg, by = join_by(week, region)) %>% 
+               left_join(tpload_week_reg, by = join_by(week, region))),
+  tar_target(week_reg_load, left_join(lake_week_reg, trib_week_reg, by = join_by(week, region)) %>% 
+               left_join(trib_q_week_reg, by = join_by(week, region)) %>% 
+               left_join(tpload_week_reg, by = join_by(week, region)) %>% 
+               left_join(nbdc_dd_week_sum, by = join_by(week)) %>% 
+               select(-n) %>% 
+               mutate(dd = if_else(region %in% c("ras", "fro", "red", "cb", "bad"), NA, dd))),
+  tar_target(week_reg_lag, left_join(lake_week_reg, trib_week_lag_reg, by = join_by(week, region))),
+  tar_target(week_reg_lag_big, left_join(lake_week_reg, trib_week_lag_reg, by = join_by(week, region)) %>% 
+               left_join(trib_q_week_lag_reg, by = join_by(week, region)) %>% 
+               left_join(tpload_week_lag_reg, by = join_by(week, region)) %>% 
+               left_join(dd_week_lag, by = join_by(week)) %>% 
+               mutate(across(contains("dd"), ~if_else(region %in% c("ras", "fro", "red", "cb", "bad"), NA, .))))
 
   
   

@@ -4,6 +4,7 @@
 .Ruserdata
 _targets/
 scratch.R
+R/unused.R
 .DS_Store
 *.DS_Store
 raw_data/.DS_Store
