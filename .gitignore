@@ -10,3 +10,4 @@ R/unused.R
 raw_data/.DS_Store
 *.html
 *.pdf
+*.Rproj
