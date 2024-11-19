@@ -16,6 +16,12 @@ read_targets <- list(
     return(if_else(is.nan(val), NA, val))
   }),
   
+  tar_target(write_file, function(df, name){
+    filepath <- str_c("out/", name, ".csv")
+    write_csv(df, filepath)
+    return(filepath)
+  }),
+  
   #Lake Superior Shape
   tar_target(ls_shp_file, "ref/ls_shp/ls.shp", format = "file"),
   tar_target(ls_shp, read_sf(ls_shp_file)),
@@ -108,7 +114,12 @@ read_targets <- list(
                ungroup() %>% 
                mutate(across(c(chl, chl_field, tss, turb, cond, ph, temp, do, do_sat,
                                doc, poc, toc, tn, tdn, ton, don, pon, no3, nh3, tp, tdp, pp, po4, npr, cnr, cpr, pnpr, pcnr, pcpr, si, cl),
-                             replace_nan)))
+                             replace_nan))),
+  
+  tar_target(lake_file, write_file(lake_full, "lake_core"), format = "file"),
+  tar_target(est_file, write_file(est_full, "estuary_core"), format = "file"),
+  tar_target(trib_file, write_file(trib_full, "tributary_core"), format = "file"),
+  tar_target(trib_q_file, write_file(trib_q, "trib_q_core"), format = "file")
   
 )
 
