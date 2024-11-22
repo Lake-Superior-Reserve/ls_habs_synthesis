@@ -3,6 +3,7 @@
 .RData
 .Ruserdata
 _targets/
+lshabs_viewer/rsconnect
 scratch.R
 R/unused.R
 .DS_Store
