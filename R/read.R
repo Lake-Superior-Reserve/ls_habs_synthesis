@@ -20,7 +20,7 @@ read_targets <- list(
     filepath <- str_c("out/", name, ".csv")
     df <- df %>% 
       mutate(date = as.character(date))
-    write_csv(df, filepath)
+    write_csv(df, filepath, na = "")
     return(filepath)
   }),
   
