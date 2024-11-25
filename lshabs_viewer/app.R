@@ -850,7 +850,6 @@ server <- function(input, output) {
         ggplot(data = lake_clus(), aes(x = PC1, y = PC2, color = kclus, text = site)) +
           geom_point() +
           stat_chull(fill = NA) +
-          geom_label_repel(aes(label = site)) + 
           scale_color_viridis_d()
       )
     } else {
