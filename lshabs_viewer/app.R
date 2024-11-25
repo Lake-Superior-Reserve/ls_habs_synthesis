@@ -206,6 +206,13 @@ make_lag <-  function(df, cols, n = 4){
     select(-all_of(cols))
 }
 
+
+lake_week_lag_reg <-  make_lag(lake_week_region, c("chl", "chl_field", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
+                                                        "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
+                                                        "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl")) %>% 
+  select(-c(latitude, longitude)) %>% 
+  rename_with(~ paste0("lake_", .x, recycle0 = TRUE), -c(date, region))
+
 trib_week_lag_reg <-  make_lag(tributary_week_region, c("discharge", "chl", "tss", "turb", "cond", "ph", "temp", "do", "do_sat",
                                                         "doc", "poc", "toc", "tn", "tdn", "ton", "don", "pon", "no3", "nh3", "tp", "tdp", "pp", "po4",
                                                         "npr", "cnr", "cpr", "pnpr", "pcnr", "pcpr", "si", "cl")) %>% 
@@ -280,11 +287,7 @@ lake_tributary_load <- lake_week_prep %>%
   arrange(date)
 
 lake_tributary_lag <- lake_week_prep %>% 
-  left_join(dd_week, by = join_by(date)) %>% 
-  left_join(dd_week_lag, by = join_by(date)) %>% 
   full_join(trib_week_lag_reg, by = join_by(date, region)) %>% 
-  mutate(dd = if_else(region %in% c("ras", "fro", "red", "cb", "bad"), NA, dd),
-         across(contains("dd"), ~if_else(region %in% c("ras", "fro", "red", "cb", "bad"), NA, .))) %>% 
   filter(!if_all(-c(date, region, trib_discharge_lag1, trib_discharge_lag2, trib_discharge_lag3, trib_discharge_lag4), is.na)) %>% 
   arrange(date)
 
@@ -293,6 +296,13 @@ lake_tributary_load_lag <- lake_week_prep %>%
   filter(!if_all(-c(date, region), is.na)) %>% 
   arrange(date)
 
+lake_lag <- lake_week_prep %>% 
+  full_join(dd_week, by = join_by(date)) %>% 
+  full_join(lake_week_lag_reg, by = join_by(date, region)) %>% 
+  full_join(dd_week_lag, by = join_by(date)) %>% 
+  mutate(dd = if_else(region %in% c("ras", "fro", "red", "cb", "bad"), NA, dd),
+         across(contains("dd"), ~if_else(region %in% c("ras", "fro", "red", "cb", "bad"), NA, .))) %>% 
+  arrange(date)
 
 datasets <- c("lake_core", "estuary_core", "tributary_core", "tributary_load", 
               "lake_scaled", "estuary_scaled", "tributary_scaled", "tributary_load_scaled",
@@ -303,7 +313,7 @@ datasets <- c("lake_core", "estuary_core", "tributary_core", "tributary_load",
               "lake_month_region", "estuary_month_region", "tributary_month_region", "tributary_load_month_region",
               "lake_week", "estuary_week", "tributary_week", "tributary_load_week",
               "lake_week_region", "estuary_week_region", "tributary_week_region", "tributary_load_week_region",
-              "lake_tributary", "lake_tributary_load", "lake_tributary_lag", "lake_tributary_load_lag")
+              "lake_tributary", "lake_tributary_load", "lake_tributary_lag", "lake_tributary_load_lag", "lake_lag")
 
 map_datasets <- c("lake_core", "estuary_core", "tributary_core", "tributary_load", 
                   "lake_scaled", "estuary_scaled", "tributary_scaled", "tributary_load_scaled",
@@ -313,6 +323,90 @@ map_datasets <- c("lake_core", "estuary_core", "tributary_core", "tributary_load
                   "lake_week_region", "estuary_week_region", "tributary_week_region", "tributary_load_week_region")
 
 
+site_rename <- Vectorize(function(site){
+  if (site %in% c("Amnicon 2a", "site 2 - 10052502")) return("Amnicon 2a - site 2")
+  else if (site %in% c("Brule 3a", "site 6 - 103")) return("Brule 3a - site 6")
+  else if (site %in% c("Flag 4a", "site 9 - 10052510")) return("Flag 4a - site 9")
+  else if (site %in% c("Bark Bay", "site 13 - 10052512")) return("Bark- site 13")
+  else if (site %in% c("Siskiwit Bay", "site 14 - 10052513", "Siskiwit Bay OS", "Siskiwit Bay NS", "Siskiwit Outlet", "Siskiwit Outlet Transect", "Siskiwit Outlet Pier End", "Siskiwit Beach")) return("Siskiwit - site 14")
+  else if (site %in% c("Mawikwe Bay", "site 15 - 10054863", "Mawikwe Bay OS", "Mawikwe Bay NS", "Mawikwe Beach")) return("Mawikwe - site 15")
+  else return(site)
+})
+
+lake_clus_prep <- lake_core %>% 
+  filter(source != "NCCA" & chl < 40) %>% 
+  select(site, chl, no3, nh3, tp, po4) %>%
+  mutate(site = site_rename(site)) %>% 
+  group_by(site) %>% 
+  mutate(n = n()) %>%
+  filter(n > 1) %>% 
+  select(-n) %>%
+  summarise(across(everything(), ~median(., na.rm = T))) %>% 
+  column_to_rownames("site") %>% 
+  na.omit() %>% 
+  scale()
+
+lake_pca <- prcomp(lake_clus_prep)
+
+StatChull <- ggproto("StatChull", Stat,
+                     compute_group = function(data, scales) {
+                       data[chull(data$x, data$y), , drop = FALSE]
+                     },
+                     
+                     required_aes = c("x", "y")
+)
+stat_chull <- function(mapping = NULL, data = NULL, geom = "polygon",
+                       position = "identity", na.rm = FALSE, show.legend = NA, 
+                       inherit.aes = TRUE, ...) {
+  layer(
+    stat = StatChull, data = data, mapping = mapping, geom = geom, 
+    position = position, show.legend = show.legend, inherit.aes = inherit.aes,
+    params = list(na.rm = na.rm, ...)
+  )
+}
+
+#using modifying functions from factoextra package
+.get_withinSS <- function(d, cluster){
+  d <- as.dist(d)
+  cn <- max(cluster)
+  clusterf <- as.factor(cluster)
+  clusterl <- levels(clusterf)
+  cnn <- length(clusterl)
+  
+  cwn <- cn
+  # Compute total within sum of square
+  dmat <- as.matrix(d)
+  within.cluster.ss <- 0
+  for (i in 1:cn) {
+    cluster.size <- sum(cluster == i)
+    di <- as.dist(dmat[cluster == i, cluster == i])
+    within.cluster.ss <- within.cluster.ss + sum(di^2)/cluster.size
+  }
+  within.cluster.ss
+}
+
+opt_clus <- function(x, kmax){
+  if (is.data.frame(x)) x <- as.matrix(x)
+  diss <- dist(x)
+  
+  v <- rep(0, kmax)
+  
+  for(i in 1:kmax){
+    clust <- kmeans(x, i, nstart = 100)
+    v[i] <- .get_withinSS(diss, clust$cluster)
+  }
+  
+  df <- data.frame(clusters = as.factor(1:kmax), y = v, stringsAsFactors = TRUE)
+  
+  ggplot(data = df, aes(x = clusters, y = y, group = 1)) +
+    geom_point() + 
+    geom_line() +
+    xlab("Number of clusters k") +
+    ylab("Total Within Sum of Square") +
+    ggtitle("Optimal number of clusters") +
+    theme_classic()
+  
+}
 
 cor_pmat <- function(x, corr) {
   
@@ -422,6 +516,21 @@ ui <- fluidPage(
                 fluidRow(
                   column(6, leafletOutput("map1", height = "600px")),
                   column(6, leafletOutput("map2", height = "600px"))
+                )
+      )
+    ),
+    
+    sidebarLayout(
+      sidebarPanel(width = 2, 
+                   tags$h4("PCA Site Clusters"),
+                   numericInput("clusk", "# of Clusters:", 8, 2, 20, 1),
+                   selectInput("clusplotchoice", "Plot Type:", c("Optimal K", "Principal Components", "Cluster Comparison")),
+                   selectInput("clusvar", "Variable for Cluster Comparison", c("chl", "no3", "nh3", "tp", "po4"))
+      ),
+      mainPanel(width = 10,
+                fluidRow(
+                  column(6, leafletOutput("clusmap", height = "600px")),
+                  column(6, plotlyOutput("clusplot", height = "600px"))
                 )
       )
     )
@@ -631,7 +740,7 @@ server <- function(input, output) {
         summarise(across(where(is.double), ~mean(.x, na.rm = TRUE))) %>% 
         mutate(across(where(is.double), replace_nan))
     } else {
-      mapdata <- filter(mapdata, date == ymd(input$map1date))
+      mapdata <- filter(mapdata, date == ymd(input$map2date))
     }
     if (is.numeric(mapdata[input$map2var][[1]])) {
       pal <- colorNumeric(
@@ -681,6 +790,19 @@ server <- function(input, output) {
     get(input$corrdataset2)
   })
   
+  lake_kmean <- reactive({
+    kmeans(lake_clus_prep, centers = input$clusk, nstart = 100)
+  })
+  
+  lake_clus <- reactive({
+    lake_kmean_clus <- data.frame(site = names(lake_kmean()$cluster), kclus = as.numeric(lake_kmean()$cluster))
+    
+    data.frame(lake_pca$x) %>% 
+      rownames_to_column(var = "site") %>% 
+      left_join(lake_kmean_clus) %>% 
+      mutate(across(c(kclus), ~as_factor(.)))
+  })
+  
   output$corrplot2 <- renderPlotly({
     data <- select(corrplot2_data(), where(is.double) & !where(is.Date)) 
     if ("latitude" %in% colnames(data)) {
@@ -688,6 +810,57 @@ server <- function(input, output) {
         select(-c(latitude, longitude))
     }
     ggplotly(ggcorrplot(data))
+  })
+  
+  output$clusmap <- renderLeaflet({
+    lake_clus_map <- select(lake_core, site, latitude, longitude) %>% 
+      mutate(site = site_rename(site)) %>% 
+      group_by(site) %>% 
+      summarise(latitude = mean(latitude), longitude = mean(longitude))
+    lake_clus_map <- lake_clus() %>% 
+      left_join(lake_clus_map)
+    
+    
+    pal <- colorFactor(
+      palette="viridis",
+      domain=lake_clus_map$kclus
+    )
+    
+    leaflet() %>%
+      addProviderTiles('Esri.WorldStreetMap') %>%
+      addCircleMarkers(
+        data = lake_clus_map,
+        lat = ~latitude,
+        lng = ~longitude,
+        label = ~str_c(site, ", cluster #", kclus, sep = ""),
+        fillColor = ~pal(kclus),
+        color="black",
+        weight =.5,
+        opacity=1,
+        fillOpacity=1,
+      )
+    
+  })
+  
+  output$clusplot <- renderPlotly({
+    if (input$clusplotchoice == "Optimal K") {
+      ggplotly(opt_clus(lake_clus_prep, input$clusk + 5))
+    } else if (input$clusplotchoice == "Principal Components") {
+      ggplotly(
+        ggplot(data = lake_clus(), aes(x = PC1, y = PC2, color = kclus, text = site)) +
+          geom_point() +
+          stat_chull(fill = NA) +
+          geom_label_repel(aes(label = site)) + 
+          scale_color_viridis_d()
+      )
+    } else {
+      lake_full_clus <- lake_core %>% 
+        left_join(lake_clus()) %>% 
+        filter(!is.na(kclus))
+      ggplot(data = lake_full_clus, aes(x = kclus, y = !!sym(input$clusvar), color = kclus)) +
+        geom_boxplot() + 
+        scale_color_viridis_d()
+    }
   })
   
 }

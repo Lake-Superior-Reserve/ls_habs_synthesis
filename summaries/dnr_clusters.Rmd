@@ -178,7 +178,7 @@ Here are 2 plots comparing number of clusters with within cluster sum of squares
 ```{r cluster1, echo=FALSE}
 fviz_nbclust(dnr_site_clus_prep, kmeans, method = "wss")
 fviz_nbclust(dnr_site_clus_prep, pam, method = "wss")
-fviz_cluster(dnr_site_clus_kmean4, data = dnr_site_clus_prep_tss)
+#fviz_cluster(dnr_site_clus_kmean4, data = dnr_site_clus_prep_tss)
 ```
 
 I went with 2 clusters originally, since I tend to be more of a lumper than a splitter. To my eye 5 and 7 clusters are also "elbow points" for k-means; 6 looks like the elbow for k-medioids. 
