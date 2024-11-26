@@ -4,6 +4,7 @@ library(rlang)
 library(reshape2)
 library(plotly)
 library(leaflet)
+library(DT)
 
 replace_nan <-  function(val){
   return(if_else(is.nan(val), NA, val))
@@ -484,6 +485,8 @@ ui <- fluidPage(
       )
     ),
     
+    tags$hr(),
+    
     sidebarLayout(
         sidebarPanel(width = 2,
                      tags$h4("Plot 1:"),
@@ -500,6 +503,8 @@ ui <- fluidPage(
           )
         )
     ),
+    
+    tags$hr(),
     
     sidebarLayout(
       sidebarPanel(width = 2, 
@@ -520,6 +525,8 @@ ui <- fluidPage(
       )
     ),
     
+    tags$hr(),
+    
     sidebarLayout(
       sidebarPanel(width = 2, 
                    tags$h4("PCA Site Clusters"),
@@ -531,6 +538,21 @@ ui <- fluidPage(
                 fluidRow(
                   column(6, leafletOutput("clusmap", height = "600px")),
                   column(6, plotlyOutput("clusplot", height = "600px"))
+                )
+      )
+    ),
+    
+    tags$hr(),
+    
+    sidebarLayout(
+      sidebarPanel(width = 2, 
+                   selectInput("tabledataset1", "Table 1 Dataset:", datasets, selected = "lake_core"),
+                   selectInput("tabledataset2", "Table 2 Dataset:", datasets, selected = "lake_scaled")
+      ),
+      mainPanel(width = 10,
+                fluidRow(
+                  column(6, DTOutput("table1")),
+                  column(6, DTOutput("table2"))
                 )
       )
     )
@@ -691,40 +713,49 @@ server <- function(input, output) {
     if (input$map1date == "all") {
       mapdata <- mapdata %>% 
         group_by(site) %>% 
-        summarise(across(where(is.double), ~mean(.x, na.rm = TRUE))) %>% 
-        mutate(across(where(is.double), replace_nan))
+        summarise(across(where(is.double), ~median(.x, na.rm = TRUE)), across(where(is.character), ~first(.x))) %>% 
+        mutate(across(where(is.double), replace_nan),
+               across(where(is.character), as_factor))
     } else {
       mapdata <- filter(mapdata, date == ymd(input$map1date))
     }
-    if (is.numeric(mapdata[input$map1var][[1]])) {
-      pal <- colorNumeric(
-        palette=colorRamp(c("white", "black"), interpolate = "spline"),
-        domain=map1data()[input$map1var]
+    
+    if (input$map1var %in% c("site", "source", "region", "huc")){
+      pal <- colorFactor(
+        palette="viridis",
+        domain=deframe(mapdata[input$map1var])
       )
-      if (nrow(mapdata > 0)){
-        leaflet() %>%
-          addProviderTiles('Esri.WorldStreetMap') %>%
-          addCircleMarkers(
-            data = mapdata,
-            lat = ~latitude,
-            lng = ~longitude,
-            label = ~str_c(site, get(input$map1var), sep = " "),
-            fillColor = ~pal(get(input$map1var)),
-            color="black",
-            weight =.5,
-            opacity=1,
-            fillOpacity=1,
-          ) %>% 
-          addLegend(
-            position = "bottomright",
-            pal = pal,
-            data = map1data(),
-            values = ~get(input$map1var),
-            bins = 3,
-            title = input$map1var
-          )
-      }
+    } else {
+      pal <- colorNumeric(
+        palette="viridis",
+        domain=mapdata[input$map1var]
+      )
     }
+    
+    if (nrow(mapdata > 0)){
+      leaflet() %>%
+        addProviderTiles('Esri.WorldStreetMap') %>%
+        addCircleMarkers(
+          data = mapdata,
+          lat = ~latitude,
+          lng = ~longitude,
+          label = ~str_c(site, get(input$map1var), sep = " "),
+          fillColor = ~pal(get(input$map1var)),
+          color="black",
+          weight =.5,
+          opacity=1,
+          fillOpacity=1,
+        ) %>% 
+        addLegend(
+          position = "topright",
+          pal = pal,
+          data = mapdata,
+          values = ~get(input$map1var),
+          bins = 5,
+          title = input$map1var
+        )
+    }
+    
   })
   
   output$map2 <- renderLeaflet({
@@ -737,40 +768,49 @@ server <- function(input, output) {
     if (input$map2date == "all") {
       mapdata <- mapdata %>% 
         group_by(site) %>% 
-        summarise(across(where(is.double), ~mean(.x, na.rm = TRUE))) %>% 
-        mutate(across(where(is.double), replace_nan))
+        summarise(across(where(is.double), ~median(.x, na.rm = TRUE)), across(where(is.character), ~first(.x))) %>% 
+        mutate(across(where(is.double), replace_nan),
+               across(where(is.character), as_factor))
     } else {
       mapdata <- filter(mapdata, date == ymd(input$map2date))
     }
-    if (is.numeric(mapdata[input$map2var][[1]])) {
-      pal <- colorNumeric(
-        palette=colorRamp(c("white", "black"), interpolate = "spline"),
-        domain=map2data()[input$map2var]
+    
+    if (input$map2var %in% c("site", "source", "region", "huc")){
+      pal <- colorFactor(
+        palette="viridis",
+        domain=deframe(mapdata[input$map2var])
       )
-      if (nrow(mapdata > 0)){
-        leaflet() %>%
-          addProviderTiles('Esri.WorldStreetMap') %>%
-          addCircleMarkers(
-            data = mapdata,
-            lat = ~latitude,
-            lng = ~longitude,
-            label = ~str_c(site, get(input$map2var), sep = " "),
-            fillColor = ~pal(get(input$map2var)),
-            color="black",
-            weight =.5,
-            opacity=1,
-            fillOpacity=1,
-          ) %>% 
-          addLegend(
-            position = "bottomright",
-            pal = pal,
-            data = map2data(),
-            values = ~get(input$map2var),
-            bins = 3,
-            title = input$map2var
-          )
-      }
+    } else {
+      pal <- colorNumeric(
+        palette="viridis",
+        domain=mapdata[input$map2var]
+      )
     }
+    
+    if (nrow(mapdata > 0)){
+      leaflet() %>%
+        addProviderTiles('Esri.WorldStreetMap') %>%
+        addCircleMarkers(
+          data = mapdata,
+          lat = ~latitude,
+          lng = ~longitude,
+          label = ~str_c(site, get(input$map2var), sep = " "),
+          fillColor = ~pal(get(input$map2var)),
+          color="black",
+          weight =.5,
+          opacity=1,
+          fillOpacity=1,
+        ) %>% 
+        addLegend(
+          position = "topright",
+          pal = pal,
+          data = mapdata,
+          values = ~get(input$map2var),
+          bins = 5,
+          title = input$map2var
+        )
+    }
+    
   })
   
   corrplot1_data <- reactive({
@@ -790,6 +830,15 @@ server <- function(input, output) {
     get(input$corrdataset2)
   })
   
+  output$corrplot2 <- renderPlotly({
+    data <- select(corrplot2_data(), where(is.double) & !where(is.Date)) 
+    if ("latitude" %in% colnames(data)) {
+      data <- data %>% 
+        select(-c(latitude, longitude))
+    }
+    ggplotly(ggcorrplot(data))
+  })
+  
   lake_kmean <- reactive({
     kmeans(lake_clus_prep, centers = input$clusk, nstart = 100)
   })
@@ -803,15 +852,6 @@ server <- function(input, output) {
       mutate(across(c(kclus), ~as_factor(.)))
   })
   
-  output$corrplot2 <- renderPlotly({
-    data <- select(corrplot2_data(), where(is.double) & !where(is.Date)) 
-    if ("latitude" %in% colnames(data)) {
-      data <- data %>% 
-        select(-c(latitude, longitude))
-    }
-    ggplotly(ggcorrplot(data))
-  })
-  
   output$clusmap <- renderLeaflet({
     lake_clus_map <- select(lake_core, site, latitude, longitude) %>% 
       mutate(site = site_rename(site)) %>% 
@@ -819,8 +859,7 @@ server <- function(input, output) {
       summarise(latitude = mean(latitude), longitude = mean(longitude))
     lake_clus_map <- lake_clus() %>% 
       left_join(lake_clus_map)
-    
-    
+
     pal <- colorFactor(
       palette="viridis",
       domain=lake_clus_map$kclus
@@ -861,6 +900,16 @@ server <- function(input, output) {
         scale_color_viridis_d()
     }
   })
+  
+  output$table1 <- renderDT({
+     get(input$tabledataset1) %>% 
+      mutate(across(where(is.numeric), ~round(., 3)))
+  }, options = list(scrollX = TRUE))
+  
+  output$table2 <- renderDT({
+    get(input$tabledataset2) %>% 
+      mutate(across(where(is.numeric), ~round(., 3)))
+  }, options = list(scrollX = TRUE))
   
 }
 
