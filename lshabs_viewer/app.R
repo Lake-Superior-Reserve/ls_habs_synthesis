@@ -706,7 +706,7 @@ server <- function(input, output) {
   output$map1 <- renderLeaflet({
     if (!("site" %in% colnames(map1data()))) {
       mapdata <- map1data() %>% 
-        rename(site = region)
+        mutate(site = region)
     } else {
       mapdata <- map1data()
     }
@@ -761,7 +761,7 @@ server <- function(input, output) {
   output$map2 <- renderLeaflet({
     if (!("site" %in% colnames(map2data()))) {
       mapdata <- map2data() %>% 
-        rename(site = region)
+        mutate(site = region)
     } else {
       mapdata <- map2data()
     }

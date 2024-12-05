@@ -49,7 +49,7 @@ read_targets <- list(
   
   
   # making full files by type
-  tar_target(lake_full, filter(dnr, type == "Lake") %>%
+  tar_target(lake_full, filter(dnr, type == "Lake" & year(date) < 2024) %>%
                bind_rows(filter(umd, type == "Lake" & depth <= 2)) %>% 
                bind_rows(filter(nps, type == "Lake")) %>%
                bind_rows(cbnut_clean) %>%
