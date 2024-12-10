@@ -8,6 +8,7 @@ This repository holds code to synthesize and analyze data on the Western arm of 
 -   `/ref` contains reference files with supporting information, such as site coordinates, used to assemble the data sets.
 -   `/R` contains the R scripts used to build and analyse the data sets. `read.R` processes the files in `/raw_data` and data pulled from the EPA Water Quality Portal (WQP) and the USGS National Water Information System (NWIS) to create the core data sets. Specific reading and cleaning steps for each raw file can be found in the relevant provider script in `/R/read_targets`. `analysis.R` and `visual.R` are used to analyze and visualize the core data sets and are currently in progress.
 -   `/summaries` contains R Markdown files to describe trends in specific subsections of the data.
+-   `/lshabs_viewer` contains the code and data files for an R Shiny application to visualize trends in the data. Currently under development.
 -   `/out` contains csv versions of the core data sets.
 
 ## Core Data Sets
