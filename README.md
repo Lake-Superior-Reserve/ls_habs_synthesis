@@ -18,7 +18,7 @@ This repository holds code to synthesize and analyze data on the Western arm of 
 -   `tributary_core.csv` has observations from rivers and streams in the Western Lake Superior watershed (HUC8 codes "04010102", "04010201", "04010202", "04010301", and "04010302").
 -   `trib_q_core.csv` has observations of discharge only in the Western Lake Superior watershed (see above) and is split out to keep the main tributary file size down.
 
-Currently, the core data sets have observations from 10/1/2010 - 12/31/2023. All observations are taken in surface waters (\< 2m depth) and may be the average of multiple measurements taken at the same site on the same day. Core data sets may contain the following columns:
+Currently, the core data sets have observations from 1/1/2010 - 12/31/2023. All observations are taken in surface waters (\< 2m depth) and may be the average of multiple measurements taken at the same site on the same day. Core data sets may contain the following columns:
 
 -   `date` - date in the America/Chicago timezone
 -   `latitude` - latitude, decimal degrees, WGS84
