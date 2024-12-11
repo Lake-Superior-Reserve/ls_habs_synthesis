@@ -1,6 +1,14 @@
 dnr_targets <- list(
   
+  # Helper functions ------------------------------------------------------
   
+  #' Rename variables based on WDNR parameter codes
+  #' 
+  #' This function returns a properly formatted (for this dataset) variable name for the passed in parameter code.
+  #'
+  #' @param param A character string parameter code
+  #'
+  #' @return A character string variable name, or NA
   tar_target(dnr_rename, Vectorize(function(param) {
     if (is.na(param)) return(NA)
     else if (param == "10") return("temp")
@@ -26,8 +34,15 @@ dnr_targets <- list(
     else return(NA)
   })),
   
+  #' Fix dates
+  #' 
+  #' This function fixes known incorrectly entered dates in the data. Changes were confirmed via email with Ellen C on 9/9/24.
+  #'
+  #' @param station A character string WDNR station ID code.
+  #' @param date A character string date. %m/%d/%Y for 2019 data, %Y-%m-%d for other data.
+  #'
+  #' @return A character string date. %m/%d/%Y for 2019 data, %Y-%m-%d for other data.
   tar_target(dnr_fix_dates, Vectorize(function(station, date) {
-    # confirmed changes with Ellen C 9/9/24
     if (station == "10040814" & date == "8/20/2019") return("8/22/2019") # chl is on a different day from rest of analytes, chl start and end sample dates don’t match
     else if (station == "10052503" & date == "8/11/2019") return("8/12/2019") # chl is on a different day from rest of analytes
     else if (station == "10052514" & date == "7/22/2019") return("7/25/2019") # chl is on a different day from rest of analytes, other analytes start and end sample dates don’t match
@@ -37,6 +52,13 @@ dnr_targets <- list(
   })),
   
   
+  # Raw file list --------------------------------------------------------
+  
+  #' Targets for raw source files
+  #' 
+  #' These targets list the paths for all of the WDNR source files.
+  #'
+  #' @return A file path.
   tar_target(dnr_swims_19_file, "raw_data/wdnr/2019LSNSHABs_SWIMS.xlsx", format = "file"),
   tar_target(dnr_swims_21_file, "raw_data/wdnr/2021NSData_LDES.xlsx", format = "file"),
   tar_target(dnr_swims_22_file, "raw_data/wdnr/2022NSHAB_LDES.xlsx", format = "file"),
@@ -50,6 +72,18 @@ dnr_targets <- list(
   tar_target(dnr_hydro_24_file, "raw_data/wdnr/2024_LS_NS_HABs_HydroData_alldepth.xlsx", format = "file"),
   tar_target(dnr_hydro_24_cb_file, "raw_data/wdnr/Compiled_NC_Nearshore_Sites_2024.xlsx", format = "file"),
   
+  tar_target(dnr_nc_sites_file, "ref/NC_DNR_sites.csv", format = "file"),
+  
+  
+  # Read in raw files -----------------------------------------------------------------
+  
+  #' Read source files
+  #' 
+  #' These targets read in source data files using `read_xlsx()` and `read_csv()`
+  #'
+  #' @param Filepath to source file
+  #' 
+  #' @return Data frame of source data
   tar_target(dnr_swims_19, read_xlsx(dnr_swims_19_file)),
   tar_target(dnr_swims_21, read_xlsx(dnr_swims_21_file)),
   tar_target(dnr_swims_22, read_xlsx(dnr_swims_22_file)),
@@ -63,13 +97,30 @@ dnr_targets <- list(
   tar_target(dnr_hydro_24, read_xlsx(dnr_hydro_24_file)),
   tar_target(dnr_hydro_24_cb, read_xlsx(dnr_hydro_24_cb_file)),
   
-  tar_target(dnr_nc_sites_file, "ref/NC_DNR_sites.csv", format = "file"),
+  
+  # Create join tables for station, site, and block number --------------------------------
+  
+  #' Northland College site information
+  #' 
+  #' Table of site information for sites East of WDNR main sites that are sampled by Northland College, 
+  #' but are still analyzed by WSLH and the data are maintained by WDNR.
+  #' Includes lat, long, WDNR station ID, WDNR site ID, NC site ID
+  #'
+  #' @param filepath to site reference file
+  #'
+  #' @return Data frame of site info
   tar_target(dnr_nc_sites, read_csv(dnr_nc_sites_file) %>% 
                mutate(WDNR_Site_ID = str_split_i(WDNR_Site_ID, "-", 2),
                       across(c(Latitude, Longitude, WDNR_Station_ID), as.character))),
   
-  # pull out coordinates from 2019 dnr file since other years are missing it
-  # add additional coordinates provided by Ellen C 9/9/24
+  #' Station Locations
+  #' 
+  #' Table of lat/long coordinates for each station. Extracted from 2019 file to join with other years.
+  #' Also add additional coordinates provided by email from Ellen C 9/9/24
+  #'
+  #' @param dnr_swims_19 R object of (uncleaned) data from 2019
+  #'
+  #' @return Data frame of station locations  
   tar_target(dnr_stations, dnr_swims_19 %>% 
                group_by(StationID) %>%
                summarise(StationLatitude = first(StationLatitude), StationLongitude = first(StationLongitude)) %>% 
@@ -78,8 +129,15 @@ dnr_targets <- list(
                                 StationLongitude = c("-91.06150000", "-91.61504730", "-91.392734", "-92.064256"))) %>% 
                bind_rows(select(dnr_nc_sites, StationID = WDNR_Station_ID, StationLatitude = Latitude, StationLongitude = Longitude))
   ),
-  
-  # pull out site numbers (1-15) from 2023 dnr file so that we can easily merge hydro data
+ 
+  #' Station/site join table
+  #' 
+  #' Table of site numbers for each station ID. Extracted from 2023 file to join with other years.
+  #' Needed because hydro profile data are only identified by site number.
+  #'
+  #' @param dnr_swims_23 R object of (uncleaned) data from 2023
+  #'
+  #' @return Data frame of station-site pairs
   tar_target(dnr_sites, dnr_swims_23 %>%
                filter(!is.na(`Id #`) & !str_detect(`Field #`, "DUP") & !str_detect(`Field #`, "BL") & str_detect(`Field #`, "HABS")) %>% 
                mutate(site = str_split_i(`Field #`, "-", 2)) %>% 
@@ -89,7 +147,14 @@ dnr_targets <- list(
                bind_rows(select(dnr_nc_sites, StationID = WDNR_Station_ID, SiteID = WDNR_Site_ID))
   ),
   
-  # pull out block numbers from 2019 file to join sonde data
+  #' Station/block join table
+  #' 
+  #' Table of block numbers for each station ID/date. Extracted from 2019 file to join with other years.
+  #' Needed because hydro profile data in 2019 are only identified by block number.
+  #'
+  #' @param dnr_swims_19 R object of (uncleaned) data from 2019
+  #'
+  #' @return Data frame of station-date-block matches
   tar_target(dnr_blocks, dnr_swims_19 %>% 
                mutate(StartDateTime = str_split_i(StartDateTime, " ", 1),
                       StartDateTime = dnr_fix_dates(StationID, StartDateTime),
@@ -102,63 +167,81 @@ dnr_targets <- list(
                filter(!is.na(Block))),
   
   
+  # Clean raw files -----------------------------------------------------------------------
   
-  #cleaning functions
-  
+  #' Clean 2019 chemistry file
+  #' 
+  #' Target to clean 2019 chemistry data. Doesn't have its own function because it is uniquely formatted.
+  #' Main tasks are formatting dates, formatting parameter names, setting ND values to 0.5 * LOD, and making data wide.
+  #'
+  #' @param dnr_swims_19 R object of (uncleaned) data from 2019
+  #'
+  #' @return Cleaned data frame of 2019 chemistry data
   tar_target(dnr_swims_19_clean, dnr_swims_19 %>%
-               filter(!is.na(DNRParameterCode) & DNRParameterCode != "625") %>% #dropping tkn in addition to nas, tkn only has 1 round of results, all ND
+               filter(!is.na(DNRParameterCode) & DNRParameterCode != "625") %>% # dropping tkn in addition to nas, tkn only has 1 round of results, all ND
                mutate(StartDateTime = str_split_i(StartDateTime, " ", 1),
                       StartDateTime = dnr_fix_dates(StationID, StartDateTime),
                       StartDateTime = mdy(StartDateTime, tz = "America/Chicago"),
                       DNRParameterCode = unname(dnr_rename(DNRParameterCode)),
-                      ResultValueNo = if_else(ResultValueNo == "ND", as.character(0.5 * as.numeric(LODAmount)), ResultValueNo), #set NDs to 0.5 * LOD
-                      ResultValueNo = as.numeric(ResultValueNo)) %>% #separating the conversion to prevent warning message
+                      ResultValueNo = if_else(ResultValueNo == "ND", as.character(0.5 * as.numeric(LODAmount)), ResultValueNo), # set NDs to 0.5 * LOD
+                      ResultValueNo = as.numeric(ResultValueNo)) %>% # separating the conversion to prevent warning message
                select(StartDateTime, StationID, DNRParameterCode, ResultValueNo) %>%
                pivot_wider(names_from = DNRParameterCode, values_from = ResultValueNo, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
                arrange(StartDateTime, StationID) 
   ),
+  
+  #' Clean WDNR chemistry files after 2019
+  #' 
+  #' Function to clean most WDNR chemistry data. 
+  #' Main tasks are formatting dates, formatting parameter names, setting ND values to 0.5 * LOD, and making data wide.
+  #'
+  #' @param dnr_swims_<year> R object of (uncleaned) data, filtered to remove field blanks
+  #'
+  #' @return Cleaned data frame of WDNR chemistry data
+  tar_target(clean_swims, function(df){
+    df %>% 
+      mutate(`DNR Parameter Code` = unname(dnr_rename(`DNR Parameter Code`)),
+             `Numeric Value` = if_else(`Result value` == "ND", 0.5 * as.numeric(LOD), `Numeric Value`),
+             `Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
+             `Collection Start Date/Time` = dnr_fix_dates(`Id #`, `Collection Start Date/Time`),
+             `Collection Start Date/Time` = ymd(`Collection Start Date/Time`, tz = "America/Chicago"),
+             `Id #` = if_else(is.na(`Id #`), str_c('BLOOM', `Collection Start Date/Time`, sep = "_"), `Id #`)) %>% # sets station ID for 2023 bloom samples
+      select(StartDateTime = `Collection Start Date/Time`, StationID = `Id #`, `DNR Parameter Code`, `Numeric Value`) %>% 
+      pivot_wider(names_from = `DNR Parameter Code`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
+      arrange(StartDateTime, StationID)
+  }),
+  
+  #' Clean specific WDNR chemistry files after 2019
+  #' 
+  #' Targets to clean most WDNR chemistry data. 
+  #' Filter out field blanks, then pass to `clean_swims()`.
+  #' Add 2023 po4 data, which was all NDs
+  #'
+  #' @param dnr_swims_<year> R object of (uncleaned) data, filtered to remove field blanks
+  #'
+  #' @return Cleaned data frame of WDNR chemistry data
   tar_target(dnr_swims_21_clean, dnr_swims_21 %>% 
                filter(!str_detect(`Field #`, "BL")) %>% #drop field blanks
-               mutate(`DNR Parameter Code` = unname(dnr_rename(`DNR Parameter Code`)),
-                      `Numeric Value` = if_else(`Result value` == "ND", 0.5 * as.numeric(LOD), `Numeric Value`),
-                      `Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
-                      `Collection Start Date/Time` = dnr_fix_dates(`Id #`, `Collection Start Date/Time`),
-                      `Collection Start Date/Time` = ymd(`Collection Start Date/Time`, tz = "America/Chicago")) %>% 
-               select(StartDateTime = `Collection Start Date/Time`, StationID = `Id #`, `DNR Parameter Code`, `Numeric Value`) %>% 
-               pivot_wider(names_from = `DNR Parameter Code`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
-               arrange(StartDateTime, StationID)),
+               clean_swims()),
   tar_target(dnr_swims_22_clean, dnr_swims_22 %>% 
-               filter(!str_detect(`Field #`, "BL")) %>% #drop field blanks, also drops rows missing field id, which conveniently drops all the bacteria species counts
-               mutate(`DNR Parameter Code` = unname(dnr_rename(`DNR Parameter Code`)),
-                      `Numeric Value` = if_else(`Result value` == "ND", 0.5 * as.numeric(LOD), `Numeric Value`),
-                      `Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
-                      `Collection Start Date/Time` = dnr_fix_dates(`Id #`, `Collection Start Date/Time`),
-                      `Collection Start Date/Time` = ymd(`Collection Start Date/Time`, tz = "America/Chicago")) %>% 
-               select(StartDateTime = `Collection Start Date/Time`, StationID = `Id #`, `DNR Parameter Code`, `Numeric Value`) %>% 
-               pivot_wider(names_from = `DNR Parameter Code`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
-               arrange(StartDateTime, StationID)),
+               filter(!str_detect(`Field #`, "BL")) %>% # drop field blanks, also drops rows missing field id, which conveniently drops all the bacteria species counts
+               clean_swims()),
   tar_target(dnr_swims_23_clean, dnr_swims_23 %>% 
-               filter(!(str_detect(`Field #`, "BL") & !str_detect(`Field #`, "BLOOM")) & str_detect(`Field #`, "HABS")) %>% # 23 has two blooms samples (keeps blooms) and 3 random trib sites (drops trib sites)
-               mutate(`DNR Parameter Code` = unname(dnr_rename(`DNR Parameter Code`)),
-                      `Numeric Value` = if_else(`Result value` == "ND", 0.5 * as.numeric(LOD), `Numeric Value`),
-                      `Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
-                      `Collection Start Date/Time` = dnr_fix_dates(`Id #`, `Collection Start Date/Time`),
-                      `Collection Start Date/Time` = ymd(`Collection Start Date/Time`, tz = "America/Chicago"),
-                      `Id #` = if_else(is.na(`Id #`), str_c('BLOOM', `Collection Start Date/Time`, sep = "_"), `Id #`)) %>% 
-               select(StartDateTime = `Collection Start Date/Time`, StationID = `Id #`, `DNR Parameter Code`, `Numeric Value`) %>% 
-               pivot_wider(names_from = `DNR Parameter Code`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>%
-               mutate(po4 = 0.0007) %>% # per Ellen C 9/9/24, po4 samples were analyzed at Pace Analytical Duluth and were all NDs. Pace has a LOD of 0.0014 for po4, so setting all po4 results to 0.5*0.0014=0.0007
-               arrange(StartDateTime, StationID)),
+               filter(!(str_detect(`Field #`, "BL") & !str_detect(`Field #`, "BLOOM")) & str_detect(`Field #`, "HABS")) %>% # 23 has two bloom samples (keeps blooms) and 3 random trib sites (drops trib sites, which are included in WQP data)
+               clean_swims() %>% 
+               mutate(po4 = 0.0007)), # per Ellen C 9/9/24, po4 samples were analyzed at Pace Analytical Duluth and were all NDs. Pace has a LOD of 0.0014 for po4, so setting all po4 results to 0.5*0.0014=0.0007
   tar_target(dnr_swims_24_clean, dnr_swims_24 %>% 
-               filter(!str_detect(`Field #`, "BL") & !str_detect(`Field #`, "FB")) %>% #drop field blanks
-               mutate(`DNR Parameter Code` = unname(dnr_rename(`DNR Parameter Code`)),
-                      `Numeric Value` = if_else(`Result value` == "ND", 0.5 * as.numeric(LOD), `Numeric Value`),
-                      `Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
-                      `Collection Start Date/Time` = ymd(`Collection Start Date/Time`, tz = "America/Chicago")) %>% 
-               select(StartDateTime = `Collection Start Date/Time`, StationID = `Id #`, `DNR Parameter Code`, `Numeric Value`) %>% 
-               pivot_wider(names_from = `DNR Parameter Code`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
-               arrange(StartDateTime, StationID)),
+               filter(!str_detect(`Field #`, "BL") & !str_detect(`Field #`, "FB")) %>% # drop field blanks
+               clean_swims()),
   
+  #' Clean 2019 hydro file
+  #' 
+  #' Target to clean 2019 hydro profile data. Doesn't have its own function because it is uniquely formatted.
+  #' Main tasks are formatting dates, formatting parameter names, adding station IDs, and removing bad data.
+  #'
+  #' @param dnr_hydro_19 R object of (uncleaned) data from 2019
+  #'
+  #' @return Cleaned data frame of 2019 hydro profiles data
   tar_target(dnr_hydro_19_clean, dnr_hydro_19 %>% 
                mutate(`SpCond uS/cm` = if_else(is.na(`SpCond uS/cm`), 1000 * `SpCond mS/cm`, `SpCond uS/cm`),
                       `SpCond uS/cm` = if_else(`SpCond uS/cm` < 50, NA, `SpCond uS/cm`), #remove bad conductivity values
@@ -172,29 +255,51 @@ dnr_targets <- list(
                       StationID = if_else(is.na(StationID) & Block == 14, "10052512", StationID)) %>% 
                left_join(dnr_sites, by = join_by(StationID)) %>%
                select(block = Block, station = StationID, site = SiteID, date = `Date (MM/DD/YYYY)`, depth = `Depth m`, temp = `Temp °C`, do_sat = `ODO % sat`, do = `ODO mg/L`, 
-                      cond = `SpCond uS/cm`, ph = pH, turb = `Turbidity FNU`, chl_f = `Chlorophyll µg/L`)),
+                      cond = `SpCond uS/cm`, ph = pH, turb = `Turbidity FNU`, chl_field = `Chlorophyll µg/L`)),
+  
+  #' Clean WDNR chemistry files 2021-2023
+  #' 
+  #' Function to clean most WDNR hydro data. 
+  #' Main tasks are formatting dates, formatting parameter names, and removing suspicious data.
+  #'
+  #' @param dnr_hydro_<year> R object of (uncleaned) data
+  #'
+  #' @return Cleaned data frame of WDNR hydro data  
+  tar_target(clean_dnr_hydro, function(df){
+    df %>% 
+      filter(`Depth (m)` != "above") %>% 
+      mutate(`Depth (m)` = as.numeric(`Depth (m)`),
+             Date = mdy(Date, tz = "America/Chicago"),
+             `pH (SU)` = if_else(`pH (SU)` < 6.5, NA, `pH (SU)`), # drop suspicious pH values
+             `Temp (C)` = if_else(year(Date) == 2023, NA, `Temp (C)`), # 2023 temp values are all suspiciously high, dropping
+             Site = as.character(Site)) %>% 
+      left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
+      select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
+             ph = `pH (SU)`, turb = `Turbidity (NTU)`)
+  }),
+  #' Clean specific WDNR chemistry files 2021-2023
+  #' 
+  #' Targets to clean WDNR hydro data 2021-2023. 
+  #' Main tasks are formatting dates, formatting parameter names, and removing suspicious data.
+  #'
+  #' @param dnr_hydro_<year> R object of (uncleaned) data
+  #'
+  #' @return Cleaned data frame of WDNR hydro data  
   tar_target(dnr_hydro_21_clean, dnr_hydro_21 %>% 
-               filter(`Depth (m)` != "above") %>% 
-               mutate(`Depth (m)` = as.numeric(`Depth (m)`),
-                      Site = as.character(Site),
-                      Date = mdy(Date, tz = "America/Chicago")) %>% 
-               left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
-               select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
-                      ph = pH, turb = `Turbidity (NTU)`)),
+               clean_dnr_hydro()),
   tar_target(dnr_hydro_22_clean, dnr_hydro_22 %>%  
-               mutate(Date = mdy(Date, tz = "America/Chicago"),
-                      Site = as.character(Site),
-                      `pH (SU)` = if_else(`pH (SU)` < 6.5, NA, `pH (SU)`)) %>% # drop suspicious pH values
-               left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
-               select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
-                      ph = `pH (SU)`, turb = `Turbidity (NTU)`)),
+               clean_dnr_hydro()),
   tar_target(dnr_hydro_23_clean, dnr_hydro_23 %>% 
-               mutate(Date = mdy(Date, tz = "America/Chicago"),
-                      Site = as.character(Site),
-                      `Temp (C)` = NA) %>% # 2023 temp values are all suspiciously high, dropping
-               left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
-               select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
-                      ph = `pH (SU)`, turb = `Turbidity (NTU)`)),
+               clean_dnr_hydro()),
+  
+  #' Clean 2024 NC hydro data
+  #' 
+  #' Function to clean NC site hydro data. Needs its own function since it has a unique format
+  #' Main tasks are formatting dates, formatting parameter names, handling NDs, and removing suspicious data.
+  #'
+  #' @param dnr_hydro_<year> R object of (uncleaned) hydro data from NC sites.
+  #'
+  #' @return Cleaned data frame of WDNR hydro data  
   tar_target(dnr_hydro_24_cb_clean, dnr_hydro_24_cb %>% 
                mutate(site = str_split_i(WDNR_Site_ID, "-", 3),
                       Date = force_tz(Date, tzone = "America/Chicago"),
@@ -204,6 +309,14 @@ dnr_targets <- list(
                left_join(dnr_sites, by = join_by(site == SiteID)) %>% 
                select(date = Date, station = StationID, site, depth = Depth, temp = Temp_deg_C, do_sat = `HDO_%Sat`, do = `HDO_mg/l`, cond = `SpCond_uS/cm`,
                       ph = pH_units, turb = Turb_NTU, chl_field = `Chl_ug/l`)),
+  #' Clean 2024 WDNR hydro data
+  #' 
+  #' Function to clean WNDR 2024 hydro data. Needs its own function to handle different date format and join in NC site data
+  #' Main tasks are formatting dates and formatting parameter names.
+  #'
+  #' @param dnr_hydro_<year> R object of (uncleaned) hydro data.
+  #'
+  #' @return Cleaned data frame of WDNR hydro data 
   tar_target(dnr_hydro_24_clean, dnr_hydro_24 %>%  
                mutate(Date = ymd(Date, tz = "America/Chicago"),
                       Site = as.character(Site)) %>% 
@@ -213,45 +326,76 @@ dnr_targets <- list(
                bind_rows(dnr_hydro_24_cb_clean) %>% 
                arrange(date)),
   
-  #surface files
+  
+  # Create surface sample-only versions of depth profile data ------------------------
+  
+  #' Make surface-only hydro data
+  #' 
+  #' Function to average surface (<=2 m depth) observations so that there is only one row per date and site.
+  #'
+  #' @param dnr_hydro_<year>_clean R object of cleaned hydro data.
+  #'
+  #' @return Data frame of cleaned WDNR surface hydro data   
+  tar_target(make_dnr_surf, function(df){
+    data_cols = c("temp", "do_sat", "do", "cond", "ph", "turb")
+    if ("chl_field" %in% colnames(df)) data_cols <- c(data_cols, "chl_field")
+    df %>% 
+      filter(depth <= 2 & !is.na(station)) %>% 
+      group_by(date, station) %>%
+      summarise(across(all_of(data_cols), ~mean(., na.rm = TRUE))) %>% 
+      mutate(across(where(is.numeric), replace_nan))
+  }),
+  #' Make surface-only hydro data
+  #' 
+  #' Targets to average surface (<=2 m depth) observations so that there is only one row per date and site.
+  #'
+  #' @param dnr_hydro_<year>_clean R object of cleaned hydro data.
+  #'
+  #' @return Data frame of cleaned WDNR surface hydro data   
   tar_target(dnr_hydro_19_surf, dnr_hydro_19_clean %>% 
-               filter(depth <= 2 & !is.na(station)) %>% 
-               group_by(date, station) %>%
-               summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
-                         cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE), chl_field = mean(chl_f, na.rm = TRUE))),
+               make_dnr_surf()),
   tar_target(dnr_hydro_21_surf, dnr_hydro_21_clean %>% 
-               filter(depth <= 2) %>% 
-               group_by(date, station) %>%
-               summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
-                         cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE))),
+               make_dnr_surf()),
   tar_target(dnr_hydro_22_surf, dnr_hydro_22_clean %>% 
-               filter(depth <= 2) %>% 
-               group_by(date, station) %>%
-               summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
-                         cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE))),
+               make_dnr_surf()),
   tar_target(dnr_hydro_23_surf, dnr_hydro_23_clean %>% 
-               filter(depth <= 2) %>% 
-               group_by(date, station) %>%
-               summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
-                         cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE))),
+               make_dnr_surf()),
   tar_target(dnr_hydro_24_surf, dnr_hydro_24_clean %>% 
-               filter(depth <= 2 & !is.na(station)) %>% 
-               group_by(date, station) %>%
-               summarise(temp = mean(temp, na.rm = TRUE), do_sat = mean(do_sat, na.rm = TRUE), do = mean(do, na.rm = TRUE),
-                         cond = mean(cond, na.rm = TRUE), ph = mean(ph, na.rm = TRUE), turb = mean(turb, na.rm = TRUE), chl_field = mean(chl_field, na.rm = TRUE)) %>% 
-               mutate(across(where(is.numeric), replace_nan))),
+               make_dnr_surf()),
+  
+  
+  # Join together single-year files --------------------------------------------------
   
   tar_target(dnr_swims_clean, bind_rows(dnr_swims_19_clean, dnr_swims_21_clean, dnr_swims_22_clean, dnr_swims_23_clean, dnr_swims_24_clean)),
   tar_target(dnr_hydro_clean, bind_rows(dnr_hydro_19_clean, dnr_hydro_21_clean, dnr_hydro_22_clean, dnr_hydro_23_clean, dnr_hydro_24_clean)),
   tar_target(dnr_hydro_surf, bind_rows(dnr_hydro_19_surf, dnr_hydro_21_surf, dnr_hydro_22_surf, dnr_hydro_23_surf, dnr_hydro_24_surf)), 
   
-  #combine dnr files
+  
+  # Combine chemistry and surface hydro data ------------------------------------------
+  
+  #' Add together chemistry, hydro, and location data
+  #' 
+  #' Combines multi-year chemistry and hydro files as well as coordinates for each site.
+  #'
+  #' @param dnr_hydro/swims_clean data frames of combined DNR data.
+  #' @param dnr_stations Locations for each DNR station/site
+  #'
+  #' @return Data frame of combined DNR data   
   tar_target(dnr_s1, dnr_swims_clean %>% 
                left_join(dnr_stations, by = join_by(StationID)) %>% 
                left_join(dnr_sites, by = join_by(StationID)) %>% 
                rename(date = StartDateTime, station = StationID, site = SiteID) %>% 
                mutate(site = if_else(station == "104", "6", site)) %>% # Per Ellen C 9/9/24, 104 is very close to 103, and 103 was not sampled that round, so assuming 104 is also site 6
                left_join(dnr_hydro_surf, by = join_by(station, date))),
+  
+  #' Format combined WDNR data
+  #' 
+  #' Formats the combined data frame to match the style used in the full core datasets.
+  #' Adds depth, type, and source columns; merges site and station columns; renames coordinate columns
+  #'
+  #' @param dnr_s1 combined data frame of DNR data
+  #'
+  #' @return Data frame of combined DNR data, formatted for joining with core data
   tar_target(dnr, dnr_s1 %>%
                mutate(depth = 0, source = "WDNR", 
                       type = if_else(station == "BLOOM_2023-09-21", "Estuary", "Lake"),
@@ -262,7 +406,16 @@ dnr_targets <- list(
                select(-c(station, StationLatitude, StationLongitude)) %>% 
                relocate(date, site)),
   
-  #bac files
+  
+  # Additional objects for working with bacteria counts (not part of core data) -------------
+  
+  #' Extract bacteria counts from 2022 DNR chemistry data
+  #' 
+  #' Keeps only bacteria counts from 2022 data file, formats date and parameter name.
+  #'
+  #' @param dnr_swims_22 Uncleaned 2022 chemistry data
+  #'
+  #' @return Data frame of bacteria counts for 2022
   tar_target(dnr_bac_22, dnr_swims_22 %>% 
     filter(Units == "NU/mL") %>% 
     mutate(`Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
@@ -272,6 +425,13 @@ dnr_targets <- list(
            `Sample Location` = str_sub(`Sample Location`, -9, -2)) %>% 
     select(StartDateTime = `Collection Start Date/Time`, StationID = `Sample Location`, `DNR Parameter Description`, `Numeric Value`) ),
   
+  #' Extract bacteria counts from 2023 DNR chemistry data
+  #' 
+  #' Keeps only bacteria counts from 2023 data file, formats date and parameter name, fixes some site names.
+  #'
+  #' @param dnr_swims_23 Uncleaned 2023 chemistry data
+  #'
+  #' @return Data frame of bacteria counts for 2023
   tar_target(dnr_bac_23, dnr_swims_23 %>% 
     filter(Units == "NU/mL") %>% 
     mutate(`Collection Start Date/Time` = str_split_i(`Collection Start Date/Time`, " ", 1),
@@ -285,12 +445,27 @@ dnr_targets <- list(
            `DNR Parameter Description` = str_to_lower(`DNR Parameter Description`)) %>% 
     select(StartDateTime = `Collection Start Date/Time`, StationID = `Sample Location`, `DNR Parameter Description`, `Numeric Value`)),
   
+  #' Combine bacteria counts from 2022 and 2023
+  #' 
+  #' Join 2022 and 2023 bacteria count data frames, make wide, and fix some column names
+  #'
+  #' @param dnr_bac_22/23 Bacteria counts from 2022 and 2023 WDNR sampling
+  #'
+  #' @return Wide data frame of bacteria counts
   tar_target(dnr_bac, bind_rows(dnr_bac_22, dnr_bac_23) %>% 
     arrange(`DNR Parameter Description`) %>% 
     pivot_wider(names_from = `DNR Parameter Description`, values_from = `Numeric Value`, values_fn = ~ mean(.x, na.rm = TRUE)) %>% 
     arrange(StartDateTime, StationID) %>% 
     rename(date = StartDateTime, station = StationID)),
   
+  #' Add other parameters to bacteria counts
+  #' 
+  #' Joins in combined dnr file to bacteria counts
+  #'
+  #' @param dnr_s1 combined data frame of DNR data
+  #' @param dnr_bac data frame of dnr bacteria counts
+  #'
+  #' @return Data frame of bacteria counts and chemistry and hydro data.
   tar_target(dnr_bac_plus, inner_join(dnr_s1, dnr_bac) %>% 
     relocate(date, site, station, latitude = StationLatitude, longitude = StationLongitude))
 )

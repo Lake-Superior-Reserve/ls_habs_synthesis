@@ -1,4 +1,4 @@
-﻿Site,Round,Date,Depth (m),Temp (C),DO %,DO (mg/L),Specific Conductivity (uS/cm),pH,Turbidity (NTU),PAR (AMB),PAR (UW)
+Site,Round,Date,Depth (m),Temp (C),DO %,DO (mg/L),Specific Conductivity (uS/cm),pH (SU),Turbidity (NTU),PAR (AMB),PAR (UW)
 1,1,6/22/21,above,NA,NA,NA,NA,NA,NA,742.4,651.5
 1,1,6/22/21,0.1,16.5,106.2,10.1,113.0,7.9,2.6,741.2,422.9
 1,1,6/22/21,0.5,16.5,106.3,10.1,113.0,7.9,2.5,739.0,304.3
