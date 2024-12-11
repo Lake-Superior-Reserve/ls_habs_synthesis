@@ -10,6 +10,13 @@ analysis_targets <- list(
   tar_target(est_sf, make_sf(est_full)),
   tar_target(trib_q_sf, make_sf(trib_q)),
   
+  #ls loads
+  tar_target(ls_tpload_file, "raw_data/SuperiorLoads.xlsx", format = "file"),
+  tar_target(ls_tpload, read_xlsx(ls_tpload_file) %>% 
+               mutate(Date = force_tz(Date, tzone = "America/Chicago")) %>% 
+               filter(Major_Rivers250 %in% c("Amnicon River", "Bad", "Bois Brule River", "Nemadji River", "StLouis")) %>%  #montreal river at border of mi/wi?)
+               select(river = Major_Rivers250, date = Date, tp_load = Load)),
+  
   #assign region to sites
   tar_target(get_region, Vectorize(function(lat, long, huc = ""){
     if (huc == "04010102" | 

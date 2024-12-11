@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+.lintr
 _targets/
 lshabs_viewer/rsconnect
 scratch.R
