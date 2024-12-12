@@ -1,10 +1,25 @@
 umd_targets <- list(
   
+  # raw files ----------------------------------------------------------
+  
+  #' Targets for raw source files
+  #' 
+  #' These targets list the paths for all of the UMD source files.
+  #'
+  #' @return A file path.
   tar_target(umd_1721_file, "raw_data/umd/SouthShoreArchive.csv", format = "file"),
   tar_target(umd_2123_file, "raw_data/umd/SouthShoreArchive2021to2023.csv", format = "file"),
   
   tar_target(umd20_troll_file, "raw_data/umd/Troll 2020.xlsx", format = "file"),
   
+  
+  # helper function ----------------------------------------------------
+  
+  #' Combine raw 2023 troll files
+  #' 
+  #' Function to stack 2023 troll files. There are a bunch and are structured identically, so it didn't make sense to list them all.
+  #'
+  #' @returns Data frame with all raw 2023 troll data
   tar_target(get_umd23_file, function() {
     dir <- "raw_data/umd/2023"
     troll <- data.frame()
@@ -18,13 +33,33 @@ umd_targets <- list(
     return(troll)
   }),
   
+  
+  # read files ----------------------------------------------------------
+  
+  #' Read UMD files
+  #' 
+  #' First two files are chemistry only; troll files are water quality only
+  #' 
+  #' @param umd_<years>_file raw chemistry data file
+  #' @param umd<years>_troll_file raw water quality data file
+  #'
+  #' @return Data frame with nutrient/water quality data
   tar_target(umd_1721, read_csv(umd_1721_file)),
   tar_target(umd_2123, read_csv(umd_2123_file)),
   
   tar_target(umd20_troll, read_xlsx(umd20_troll_file)),
   tar_target(umd23_troll, get_umd23_file()),
   
-  # umd clean and combine
+  
+  # Clean files ---------------------------------------------------------
+  
+  #' Clean chemistry files
+  #' 
+  #' Cleans raw chemistry data, converting units, handling NDs, renaming columns, and averaging duplicates.
+  #' 
+  #' @param umd_<year> data frame of chemistry data.
+  #'
+  #' @return Data frame of cleaned chemistry data.
   tar_target(umd_1721_clean, umd_1721 %>% 
                mutate(Date = mdy(Date, tz = "America/Chicago"),
                       NO3 = if_else(NO3Flag == "bdl", 0.001, NO3), # set to 0.5 * detection limit if below detection limit
@@ -58,36 +93,73 @@ umd_targets <- list(
                       toc = poc + doc) %>% 
                rename(date = Date, site = Site)),
   
+  #' Clean 2020 troll files
+  #' 
+  #' Cleans raw 2020 troll (water quality) data, converting units, formatting dates, dropping bad data, and renaming columns.
+  #' Also splits data innto two parts: depth profiles and surface transects
+  #' 
+  #' @param umd20_troll data frame of troll data.
+  #'
+  #' @return Data frame of cleaned depth profile or surface transect troll data.
+  tar_target(clean_umd20_troll, function(df){
+    df %>% 
+      select(date = `Date Time`, site = Station,
+             latitude = `Latitude (°)`, longitude = `Longitude (°)`, depth = `Depth (ft) (525639)`,
+             chl_field = `Chlorophyll-a Concentration (µg/L) (652536)`, temp = `Water Temperature (°C) (519767)`,
+             cond = `Specific Conductivity (µS/cm) (675375)`, turb = `Turbidity (NTU) (695981)`, 
+             tds = `Total Dissolved Solids (ppt) (675375)`, tss = `Total Suspended Solids (mg/L) (695981)`) %>% 
+      mutate(tds = tds * 1000, #convert to uS/cm
+             depth = depth * 0.3048, # convert to m
+             date = force_tz(date, tzone = "America/Chicago")) %>% 
+      filter(depth > 0 & cond > 80) #remove measurements above water/suspected above water
+  }),
   tar_target(umd20_troll_profile, umd20_troll %>% 
                filter(`Profile or Transect` == "P") %>% 
-               select(date = `Date Time`, site = Station,
-                      latitude = `Latitude (°)`, longitude = `Longitude (°)`, depth = `Depth (ft) (525639)`,
-                      chl_field = `Chlorophyll-a Concentration (µg/L) (652536)`, temp = `Water Temperature (°C) (519767)`,
-                      cond = `Specific Conductivity (µS/cm) (675375)`, turb = `Turbidity (NTU) (695981)`, 
-                      tds = `Total Dissolved Solids (ppt) (675375)`, tss = `Total Suspended Solids (mg/L) (695981)`) %>% 
-               mutate(tds = tds * 1000,
-                      depth = depth * 0.3048,
-                      date = force_tz(date, tzone = "America/Chicago")) %>% 
-               filter(depth > 0 & cond > 80)), #remove measurements above water/suspected above water
+               clean_umd20_troll()),
   tar_target(umd20_troll_transect, umd20_troll %>% 
                filter(`Profile or Transect` == "T") %>% 
-               select(date = `Date Time`, site = Station,
-                      latitude = `Latitude (°)`, longitude = `Longitude (°)`, depth = `Depth (ft) (525639)`,
-                      chl_field = `Chlorophyll-a Concentration (µg/L) (652536)`, temp = `Water Temperature (°C) (519767)`,
-                      cond = `Specific Conductivity (µS/cm) (675375)`, turb = `Turbidity (NTU) (695981)`, 
-                      tds = `Total Dissolved Solids (ppt) (675375)`, tss = `Total Suspended Solids (mg/L) (695981)`) %>% 
-               mutate(tds = tds * 1000,
-                      depth = depth * 0.3048,
-                      date = force_tz(date, tzone = "America/Chicago")) %>% 
-               filter(depth > 0 & cond > 80)), #remove measurements above water/suspected above water
+               clean_umd20_troll()), 
+  
+  #' Clean 2023 troll file
+  #' 
+  #' Cleans raw 2023 troll (water quality) data, converting units, formatting dates, dropping bad data, and renaming columns.
+  #' Also splits data innto two parts: depth profiles and surface transects
+  #' 
+  #' @param umd20_troll data frame of troll data.
+  #'
+  #' @return Data frame of cleaned troll data.
+  tar_target(umd23_troll_clean, umd23_troll %>% 
+               mutate(date = force_tz(`Date Time`, tzone = "America/Chicago"),
+                      tds = `Total Dissolved Solids (ppt) (803397)` * 1000, #convert to uS/cm
+                      depth = `Depth (ft) (785112)` * 0.3048) %>% # convert to m
+               select(date, site,
+                      latitude = `Latitude (°)`, longitude = `Longitude (°)`, depth,
+                      chl_field = `Chlorophyll-a Fluorescence (RFU) (804408)`, temp = `Temperature (°C) (804550)`, # based on the troll 2020 file, chl RFU is equivalent to ug/L for this sensor
+                      cond = `Specific Conductivity (µS/cm) (803397)`, turb = `Turbidity (NTU) (803671)`, tds) %>% 
+               mutate(cond = if_else(cond < 50, NA, cond), # drop very low/high data
+                      tds = if_else(tds < 40, NA, tds),
+                      turb = if_else(turb > 10000, NA, turb))),
+  
+  
+  # Make surface-only files ---------------------------------------------------------
+  
+  #' Make surface-only troll data
+  #' 
+  #' Average surface (<=2 m depth) observations in troll data so that there is only one row per date and site.
+  #' Fix site names in 2023 file
+  #' Bind together all troll data across years
+  #'
+  #' @param umd<year>_troll_<type>_surf cleaned troll data.
+  #'
+  #' @return Data frame of all UMD surface water quality data 
   tar_target(umd20_troll_profile_surf, umd20_troll_profile %>% 
-               filter(depth < 2) %>% # only want surface measurements
+               filter(depth <= 2) %>% # only want surface measurements
                mutate(date = date(date)) %>% 
                group_by(date, site) %>%
                summarise(across(c(latitude, longitude, depth, chl_field, temp, cond, turb, tds, tss), ~mean(.x, na.rm = TRUE)))%>% 
                ungroup()),
   tar_target(umd20_troll_transect_surf, umd20_troll_transect %>% 
-               filter(depth < 2) %>% # only want surface measurements
+               filter(depth <= 2) %>% # only want surface measurements
                mutate(date = date(date)) %>% 
                group_by(date, site) %>%
                summarise(across(c(latitude, longitude, depth, chl_field, temp, cond, turb, tds, tss), ~mean(.x, na.rm = TRUE)))%>% 
@@ -95,19 +167,8 @@ umd_targets <- list(
   tar_target(umd20_troll_surf, umd20_troll_profile_surf %>% 
                bind_rows(umd20_troll_transect_surf)),
   
-  tar_target(umd23_troll_clean, umd23_troll %>% 
-               mutate(date = force_tz(`Date Time`, tzone = "America/Chicago"),
-                      tds = `Total Dissolved Solids (ppt) (803397)` * 1000,
-                      depth = `Depth (ft) (785112)` * 0.3048) %>% 
-               select(date, site,
-                      latitude = `Latitude (°)`, longitude = `Longitude (°)`, depth,
-                      chl_field = `Chlorophyll-a Fluorescence (RFU) (804408)`, temp = `Temperature (°C) (804550)`, # based on the troll 2020 file, chl RFU is equivalent to ug/L for this sensor
-                      cond = `Specific Conductivity (µS/cm) (803397)`, turb = `Turbidity (NTU) (803671)`, tds) %>% 
-               mutate(cond = if_else(cond < 50, NA, cond),
-                      tds = if_else(tds < 40, NA, tds),
-                      turb = if_else(turb > 10000, NA, turb))),
   tar_target(umd23_troll_surf, umd23_troll_clean %>% 
-               filter(depth < 2) %>% # only want surface measurements
+               filter(depth <= 2) %>% # only want surface measurements
                mutate(date = date(date)) %>% 
                group_by(date, site) %>%
                summarise(across(c(latitude, longitude, depth, chl_field, temp, cond, turb, tds), ~mean(.x, na.rm = TRUE)))%>% 
@@ -126,15 +187,21 @@ umd_targets <- list(
   
   tar_target(umd_troll_surf, bind_rows(umd20_troll_surf, umd23_troll_surf)),
   
+  
+  # Make full file -----------------------------------------------------------------
+  
+  #' Make combined UMD file
+  #' 
+  #' Join Chemistry and surface water quality data, add type, source, and huc columns
+  #'
+  #' @param umd_<year>_clean clean chemistry data
+  #' @param umd_troll_surf clean, surface-only troll data
+  #'
+  #' @return Data frame of all UMD data, ready to join with core data. 
   tar_target(umd, bind_rows(umd_1721_clean, umd_2123_clean) %>%
                mutate(across(-c(source, type, site, depth, latitude, longitude), replace_nan)) %>%
                left_join(select(umd_troll_surf, -c(depth, tss, latitude, longitude))) %>% 
                mutate(type = if_else(str_detect(site, "Barkers") | site == "Nemadji River ISCO", "Estuary", type),
                       huc = if_else(type == "Watershed", "04010301", NA)))
-  
-  
-  
-  
-  
   
 )

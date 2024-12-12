@@ -1,11 +1,29 @@
 lsnerr_targets <- list(
   
+  # Helper functions ---------------------------------------------------------
+  
+  #' QC water quality data
+  #' 
+  #' Function to drop values based on NERR QC codes (1 and -3). Meant to be used on whole columns.
+  #'
+  #' @param value parameter numerical value column
+  #' @param flag corresponding flag column for value
+  #'
+  #' @returns value or NA if QC fails
   tar_target(qc_lsnerr_wq, Vectorize(function(value, flag) {
     if (is.na(flag)) return(value)
     else if (str_detect(flag, "1") | str_detect(flag, "-3")) return(NA) # remove values that are suspect (1) or did not pass QC (-3)
     else return(value)
   })),
   
+  #' QC nutrient chemistry data
+  #' 
+  #' Function to drop values based on NERR QC codes (1 and -3). Also sets NDs as 0.5*LOD. Meant to be used on whole columns.
+  #'
+  #' @param value parameter numerical value column
+  #' @param flag corresponding flag column for value
+  #'
+  #' @returns value or NA if QC fails
   tar_target(qc_lsnerr_nut, Vectorize(function(value, flag) {
     if (is.na(flag)) return(value)
     else if (str_detect(flag, "-4")) return(value * 0.5) # set NDs to be .5 the MDL, reported values are the MDL for that year
@@ -13,13 +31,28 @@ lsnerr_targets <- list(
     else return(value)
   })),
   
+  #' Combine raw water quality files
+  #' 
+  #' Function to stack water quality files. There are a bunch and are structured identically, so it didn't make sense to list them all.
+  #'
+  #' @returns Data frame with all raw LSNERR water quality data
+  tar_target(get_lkswq_file, function() {
+    dir <- "raw_data/lsnerr/lkswq"
+    lkswq <- data.frame()
+    for (file in list.files(dir)) {
+      lkswq <- bind_rows(lkswq, read_csv(str_c(dir,file,sep = "/")))
+    }
+    return(lkswq[1:30])
+  }),  
+
+  # Raw files --------------------------------------------------------
+  
+  #' Targets for raw source files
+  #' 
+  #' These targets list the paths for all of the LSNERR source files.
+  #'
+  #' @return A file path.
   tar_target(nerr_stations_file, "ref/nerr_sampling_stations.csv", format = "file"),
-  tar_target(nerr_stations, read_csv(nerr_stations_file) %>%
-               select(site = `Station Code`, latitude = Latitude, longitude = Longitude) %>% 
-               filter(str_detect(site, "lks")) %>% 
-               mutate(site = str_sub(site, end = 5),
-                      longitude = 0 - as.numeric(longitude)) %>% 
-               filter(!duplicated(site))),
   
   tar_target(lksnut12_file, "raw_data/lsnerr/lksnut/lksnut2012.csv", format = "file"),
   tar_target(lksnut13_file, "raw_data/lsnerr/lksnut/lksnut2013.csv", format = "file"),
@@ -35,15 +68,30 @@ lsnerr_targets <- list(
   tar_target(lksnut23_file, "raw_data/lsnerr/lksnut/lksnut2023.csv", format = "file"),
   #tar_target(lksnut24_file, "raw_data/lsnerr/lksnut/lksnut2024.csv", format = "file"),
   
-  tar_target(get_lkswq_file, function() {
-    dir <- "raw_data/lsnerr/lkswq"
-    lkswq <- data.frame()
-    for (file in list.files(dir)) {
-      lkswq <- bind_rows(lkswq, read_csv(str_c(dir,file,sep = "/")))
-    }
-    return(lkswq[1:30])
-  }),
   
+  # Read files ------------------------------------------------------------
+  
+  #' Read LSNERR station list
+  #' 
+  #' Reads in file of all NERR stations, filters to just LSNERR stations, changes column names, cleans site name
+  #' 
+  #' @param nerr_stations_file csv with all NERR station locations
+  #'
+  #' @return Data frame of LSNERR stations and coordinates.
+  tar_target(nerr_stations, read_csv(nerr_stations_file) %>%
+             select(site = `Station Code`, latitude = Latitude, longitude = Longitude) %>% 
+             filter(str_detect(site, "lks")) %>% 
+             mutate(site = str_sub(site, end = 5),
+                    longitude = 0 - as.numeric(longitude)) %>% 
+             filter(!duplicated(site))),
+  
+  #' Read LSNERR nutrient files
+  #' 
+  #' Reads in raw files of nutrient data, fixing column types as needed and bind together.
+  #' 
+  #' @param lksnut<year> csv with LSNERR nutrient data.
+  #'
+  #' @return Data frame of uncleaned nutrient data.
   tar_target(lksnut12, read_csv(lksnut12_file, 
                                 col_types = cols(NH4F = col_double(), NO2F = col_double(), 
                                                  NO3F = col_double(), F_CHLA_N = col_character()))),
@@ -74,11 +122,25 @@ lsnerr_targets <- list(
                                 col_types = cols(F_Record = col_character()))),
   tar_target(lksnut23, read_csv(lksnut23_file)),
   #tar_target(lksnut24, read_csv(lksnut24_file),
-  
   tar_target(lksnut, bind_rows(lksnut12, lksnut13, lksnut14, lksnut15, lksnut16, lksnut17, lksnut18, lksnut19, lksnut20, lksnut21, lksnut22, lksnut23)),
+  
+  #' Read LSNERR water quality files
+  #' 
+  #' Using `get_lkswq_file()`, Reads in raw files of water quality data, and binds together.
+  #'
+  #' @return Data frame of uncleaned water quality data.
   tar_target(lkswq, get_lkswq_file()),
   
-  #lsnerr cleaning
+  
+  # Clean files ---------------------------------------------------------------------
+  
+  #' Clean LSNERR water quality files
+  #' 
+  #' Cleans raw water quality data, removing rows with no data, fixing dates, dropping bad data using `qc_lsnerr_wq()`, correcting a few other data issues
+  #' 
+  #' @param lkswq data frame of LSNERR water quality data.
+  #'
+  #' @return Data frame of cleaned water quality data.
   tar_target(lkswq_clean, lkswq %>%
                filter(!(is.na(Temp) & is.na(SpCond) &is.na(Sal) & is.na(DO_Pct) & is.na(DO_mgl) & is.na(Depth) & is.na(cDepth) & is.na(Level) & is.na(cLevel) & is.na(pH) & is.na(Turb) & is.na(ChlFluor))) %>% #drops almost half the rows
                mutate(DateTimeStamp = mdy_hm(DateTimeStamp, tz = "America/Chicago"),
@@ -98,6 +160,13 @@ lsnerr_targets <- list(
                filter(!(is.na(Temp) & is.na(SpCond) &is.na(Sal) & is.na(DO_Pct) & is.na(DO_mgl) & is.na(Depth) & is.na(cDepth) & is.na(Level) & is.na(cLevel) & is.na(pH) & is.na(Turb) & is.na(ChlFluor))) # filter again to drop more than 10k rows
   ),
   
+  #' Clean LSNERR nutrient files
+  #' 
+  #' Cleans raw nutrient data, removing rows with no data, fixing dates, dropping bad data using `qc_lsnerr_nut()`, correcting a few other data issues
+  #' 
+  #' @param lksnut data frame of LSNERR nutrient data.
+  #'
+  #' @return Data frame of cleaned nutrient data.
   tar_target(lksnut_clean, lksnut %>% 
                mutate(PO4F = qc_lsnerr_nut(PO4F, F_PO4F),
                       TP = qc_lsnerr_nut(TP, F_TP),
@@ -117,6 +186,16 @@ lsnerr_targets <- list(
                       NO3F = abs(NO3F) # make sure we don't have any negative values - this makes them very small values below detection limit, but still not 0, which is unlikely
                )),
   
+  
+  # Daily versions --------------------------------------------------------
+  
+  #' Make daily version of LSNERR water quality data
+  #' 
+  #' Get daily averages of water quality parameters and rename columns.
+  #' 
+  #' @param lkswq_clean data frame of LSNERR water quality data.
+  #'
+  #' @return Data frame of daily water quality data.
   tar_target(lkswq_dv, lkswq_clean %>%
                mutate(date = date(DateTimeStamp),
                       site = StationCode,
@@ -130,8 +209,16 @@ lsnerr_targets <- list(
                          depth = mean(cDepth, na.rm = T),
                          ph = mean(pH, na.rm = T),
                          turb = mean(Turb, na.rm = T),
-                         chl_field = mean(ChlFluor, na.rm = T))),
+                         chl_field = mean(ChlFluor, na.rm = T)) %>% 
+               ungroup()),
   
+  #' Make daily version of LSNERR nutrient data
+  #' 
+  #' Get daily averages of nutrient parameters and rename columns.
+  #' 
+  #' @param lkswq_clean data frame of LSNERR nutrient data.
+  #'
+  #' @return Data frame of daily nutrient data.
   tar_target(lksnut_dv, lksnut_clean %>% 
                mutate(date = str_split_i(DateTimeStamp, " ", 1),
                       date = mdy(date, tz = "America/Chicago"),
@@ -146,13 +233,22 @@ lsnerr_targets <- list(
                          si = mean(SiO4F, na.rm = T),
                          chl = mean(CHLA_N, na.rm = T),
                          tss = mean(TSS, na.rm = T),
-                         din = mean(DIN, na.rm = T))),
+                         din = mean(DIN, na.rm = T)) %>% 
+               ungroup()),
   
+  
+  # Make full file -------------------------------------------------------
+  
+  #' Make full LSNERR data frame
+  #' 
+  #' Combine daily water quality and nutrient data.
+  #' 
+  #' @param lkswq_dv data frame of daily LSNERR water quality data.
+  #' @param lksnut_dv data frame of daily LSNERR nutrient data.
+  #'
+  #' @return Data frame of all LSNERR daily data.
   tar_target(lsnerr, full_join(lkswq_dv, lksnut_dv) %>%
                left_join(nerr_stations) %>%
                mutate(source = "LSNERR", type = "Estuary"))
-  
-  
-  
   
 )

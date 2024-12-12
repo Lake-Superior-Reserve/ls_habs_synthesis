@@ -1,7 +1,14 @@
-
-
 wqp_targets <- list(
   
+  # helper functions -----------------------------------------------------------------
+  
+  #' Remove all NA columns
+  #' 
+  #' Drops columns from a data frame that only contain NAs 
+  #'
+  #' @param df Data frame
+  #'
+  #' @returns Data frame with columns containing only NAs removed
   tar_target(drop_na_cols, function(df) {
     na_cols <- c()
     for (n in 1:length(df)) {
@@ -13,10 +20,15 @@ wqp_targets <- list(
     return(select(df, -all_of(na_cols)))
   }),
   
-  tar_target(wqp_invalid_units, c("CONDUCTIVITY_NA_NA_%", "DISSOLVED OXYGEN (DO)_NA_NA_%", "PH_NA_NA_%", "TEMPERATURE_NA_NA_%", "TURBIDITY_NA_NA_%", "DISSOLVED OXYGEN (DO)_NA_NA_UG/KG",
-                                  "PH_NA_NA_MMOL/L", "STREAM FLOW_NA_NA_M/SEC", "TURBIDITY_NA_NA_IN", "TURBIDITY_NA_NA_NA", "TOTAL DISSOLVED SOLIDS_FILTERED_NA_LB/DAY",
-                                  "CHLOROPHYLL A_UNFILTERED_NA_G/M2", "STREAM FLOW_NA_NA_LB/DAY", "TOTAL SUSPENDED SOLIDS_NON-FILTERABLE (PARTICLE)_NA_%", "SILICA_DISSOLVED_AS SIO2_MG/L", "SILICA_DISSOLVED_AS SI_MG/L")), #dropping two silica types that won't harmonize - 16 measurements total
-  
+  #' Convert some units
+  #' 
+  #' Converts a few units that refused to harmonize (inches, ug/L)
+  #'
+  #' @param name parameter name
+  #' @param unit unit label
+  #' @param val parameter numeric value
+  #'
+  #' @returns Converted unit value, or original value
   tar_target(wqp_fix_values, Vectorize(function(name, unit, val) {
     if (is.na(unit)) return(val)
     else if (unit == "IN") return(val*2.54)
@@ -25,6 +37,14 @@ wqp_targets <- list(
     else return(val)
   })),
   
+  #' Convert some units
+  #' 
+  #' Converts a few units that refused to harmonize (inches, ug/L)
+  #'
+  #' @param name parameter name
+  #' @param unit unit label
+  #'
+  #' @returns Fixed unit label or original label
   tar_target(wqp_fix_units, Vectorize(function(name, unit) {
     if (is.na(unit)) return(unit)
     else if (name %in% c("CHLOROPHYLL A", "PHEOPHYTIN A")) return(unit)
@@ -36,6 +56,18 @@ wqp_targets <- list(
     else return(unit)
   })),
   
+  
+  # Site type correction function ------------------------------------------
+  
+  #' Fix waterbody types
+  #' 
+  #' Manually fix waterbody types for sites with known issues. Use wqp_s3_check to verify waterbody types.
+  #' Last checked 12/12/24
+  #'
+  #' @param name waterbody type
+  #' @param id site id
+  #'
+  #' @returns fixed waterbody type, or original type
   tar_target(renameMonitType, Vectorize(function (name, id) {
     gl_rename <- c("MNPCA-16-0001-00-239", "MNPCA-16-0001-00-258", "MNPCA-16-0001-00-259", "MNPCA-16-0001-00-240", "MNPCA-16-0001-00-241",
                    "MNPCA-S003-989", "MNPCA-S001-268", "MNPCA-S003-978", "MNPCA-S003-986", "WIDNR_WQX-10019105", "WIDNR_WQX-10038138", 
@@ -105,39 +137,43 @@ wqp_targets <- list(
   })),
   
   
-  tar_target(wqp_drop_cols, function(wqp){
-    na_cols <- c()
-    uno_cols <- c()
-    uno_vals <- c()
-    duo_cols <- c()
-    
-    for (n in 1:length(wqp)) {
-      cur_name <- colnames(wqp)[n]
-      cur_vals <- unique(unlist(wqp[n]))
-      if (length(cur_vals) <= 2) {
-        if (all(is.na(cur_vals))) na_cols <- append(na_cols, cur_name)
-        else if (any(is.na(cur_vals)) | length(cur_vals) == 1) {
-          uno_cols <- append(uno_cols, cur_name)
-          uno_vals <- append(uno_vals, cur_vals[!is.na(cur_vals)])
-        }
-        else duo_cols <- append(duo_cols, cur_name)
-      }
-    }
-    
-    # currently just returning na cols as needing to drop
-    return(na_cols)
-  }),
+  # References for harmonizing and removing units ------------------------------
   
+  #' List of impossible parameter/unit pairings that aren't getting caught/fixed during harmonization.
+  tar_target(wqp_invalid_units, c("CONDUCTIVITY_NA_NA_%", "DISSOLVED OXYGEN (DO)_NA_NA_%", "PH_NA_NA_%", "TEMPERATURE_NA_NA_%", "TURBIDITY_NA_NA_%", "DISSOLVED OXYGEN (DO)_NA_NA_UG/KG",
+                                  "PH_NA_NA_MMOL/L", "STREAM FLOW_NA_NA_M/SEC", "TURBIDITY_NA_NA_IN", "TURBIDITY_NA_NA_NA", "TOTAL DISSOLVED SOLIDS_FILTERED_NA_LB/DAY",
+                                  "CHLOROPHYLL A_UNFILTERED_NA_G/M2", "STREAM FLOW_NA_NA_LB/DAY", "TOTAL SUSPENDED SOLIDS_NON-FILTERABLE (PARTICLE)_NA_%", "SILICA_DISSOLVED_AS SIO2_MG/L", "SILICA_DISSOLVED_AS SI_MG/L")), #dropping two silica types that won't harmonize - 16 measurements total
+  
+  #' Filepath and read target for synonym reference table used duing harmonization.
+  #' 
+  #' See https://usepa.github.io/EPATADA/reference/TADA_GetSynonymRef.html for details.
+  #'
+  #' @returns synonym reference table
   tar_target(wqp_synref_file, "ref/wqp_Synonym_Reference_Table.csv", format = "file"),
   tar_target(wqp_synref, read_csv(wqp_synref_file)),
   
-  #pull wqp data
+  
+  # download data --------------------------------------------------
+  
+  #' Pull data from WQP
+  #' 
+  #' Pulls data based on huc8 code. See https://usepa.github.io/EPATADA/reference/TADA_BigDataRetrieval.html for details.
+  #'
+  #' @returns TADA uncleaned data frames
   tar_target(wqp_pull_trib, TADA_BigDataRetrieval(huc = c("04010102", "04010201", "04010202", "04010301", "04010302"), startDate = "2010-01-01", endDate = "2023-12-31")),
   tar_target(wqp_pull_ls, TADA_BigDataRetrieval(huc = "04020300", startDate = "2010-01-01", endDate = "2023-12-31")),
   
   
-  # cleaning WQP data
-  # first just trim sites outside area, which requires autoclean
+  # clean data -----------------------------------------------
+  
+  #' Run basic cleaning on raw WQP data
+  #' 
+  #' Runs auto-clean functions See https://usepa.github.io/EPATADA/reference/TADA_AutoClean.html for details.
+  #' Then remove sites outside our area of interest
+  #' 
+  #' @param wqp_pull_<area> raw TADA data frames
+  #'
+  #' @returns TADA autocleaned data frames for Western Lake Superior and tributaries
   tar_target(wqp_trib, wqp_pull_trib %>%
                TADA_AutoClean() %>%
                filter(TADA.LatitudeMeasure > 46)), #drop sites missing lat/long
@@ -145,7 +181,16 @@ wqp_targets <- list(
                TADA_AutoClean() %>%
                filter(TADA.LatitudeMeasure < 47.3 & TADA.LongitudeMeasure < -90.0)), #remove LS data outside of western lobe
   
-  #run all other recommended cleaning functions
+  #' Run basic cleaning on raw WQP data
+  #' 
+  #' Joins together both data pulls
+  #' Runs other relevant TADA cleaning functions See https://usepa.github.io/EPATADA/reference/index.html for details.
+  #' Removes non-sureface water data, duplicate data within and between organizations, blanks and other QC data,
+  #' Add columns for use in later steps, like depth category
+  #' 
+  #' @param wqp_<type> autocleaned and cropped TADA data frames
+  #'
+  #' @returns TADA autocleaned data frames for Western Lake Superior and tributaries
   tar_target(wqp_s1, bind_rows(wqp_trib, wqp_ls) %>%
                TADA_AnalysisDataFilter(clean = TRUE, surface_water = TRUE) %>%
                filter(!(ActivityMediaSubdivisionName %in% c("Surface Water Sediment", "Interstitial Water", "Drinking Water", "Stormwater", "Ambient Air", "Snowmelt"))) %>% #drops sediment samples from surface waters
@@ -159,7 +204,20 @@ wqp_targets <- list(
                TADA_AutoFilter() %>% 
                TADA_FlagDepthCategory()),
   
-  #harmonizing parameters and removing unnecessary parameters
+  
+  # harmonizing and removing unnecessary parameters ----------------------------------
+  
+  #' Harmonize parameter names and units
+  #' 
+  #' Removes unwanted parameters.
+  #' Harmonizes data -  See https://usepa.github.io/EPATADA/reference/HarmonizeSynonyms.html for details.
+  #' Fixes a few parameter units manually.
+  #' 
+  #' @param wqp_s1 cleaned TADA data frame
+  #' @param wqp_synref Synonym reference table
+  #' @param wqp_invalid_units list of additional bad unit/parameter pairs for removal
+  #'
+  #' @returns TADA data frames with harmonized units
   tar_target(wqp_s2, wqp_s1 %>% 
                filter(TADA.CharacteristicName %in% unique(wqp_synref$TADA.CharacteristicName)) %>%
                TADA_HarmonizeSynonyms(ref = wqp_synref) %>% 
@@ -169,25 +227,56 @@ wqp_targets <- list(
                       TADA.CharacteristicName = if_else(TADA.CharacteristicName == "DISSOLVED OXYGEN (DO)" & TADA.ResultMeasure.MeasureUnitCode == "%", "DISSOLVED OXYGEN SATURATION", TADA.CharacteristicName)) %>%
                TADA_CreateComparableID()),
   
-  #relabel site types and remove inland lakes/wetlands/etc.
+  
+  # relabel site types and remove inland lakes/wetlands/etc -----------------------
+  
+  #' Remove sites not on Lake Superior, the St Louis River Estuary, or a tributary
+  #' 
+  #' Corrects some waterbody type labels, then removes sites not on LS, the SLRE, or their tributaries.
+  #' Use target wqp_s3_check to make sure waterbodies are labeled correctly:
+  #' filter(wqp_s3_check, MonitoringLocationTypeName == "Great Lake") %>%
+  #'   TADA_OverviewMap()
+  #' replace "Great Lake" with "Estuary" and "River/Stream" as well as checking sites without any of those labels.
+  #' 
+  #' @param wqp_s2 cleaned and harmonized TADA data frame
+  #' @param wqp_invalid_units list of additional bad unit/parameter pairs for removal
+  #'
+  #' @returns TADA data frame limited to waterbodies we want
   tar_target(wqp_s3, wqp_s2 %>%
                mutate(MonitoringLocationTypeName = renameMonitType(MonitoringLocationTypeName,MonitoringLocationIdentifier)) %>%
                filter(MonitoringLocationTypeName %in% c("Great Lake", "Estuary", "River/Stream"))),
-  # could potentially filter out River/Stream sites in hucs 04010201/04010202, since they drain into the estuary before the lake
-  # make sure everything is correctly labeled - remove filter above and then run:
-  # filter(wqp_s3, MonitoringLocationTypeName == "Great Lake") %>%
-  #   TADA_OverviewMap()
-  # filter(wqp_s3, MonitoringLocationTypeName == "Estuary") %>%
-  #   TADA_OverviewMap()
-  # filter(wqp_s3, MonitoringLocationTypeName == "River/Stream") %>%
-  #   TADA_OverviewMap()
-  # filter(wqp_s3, MonitoringLocationTypeName == "Lake") %>%
-  #   TADA_OverviewMap()
+  tar_target(wqp_s3_check, wqp_s2 %>%
+               mutate(MonitoringLocationTypeName = renameMonitType(MonitoringLocationTypeName,MonitoringLocationIdentifier))),
+
   
+  # polish and format data -------------------------------------------------------
+  
+  #' Remove unneeded columns
+  #' 
+  #' Drops columns that only have NAs
+  #' Also drops columns that TADA deems unecessary, see https://usepa.github.io/EPATADA/reference/RetainRequired.html for details.
+  #' 
+  #' @param wqp_s3 cleaned and harmonized TADA data frame limited to sites we want
+  #'
+  #' @returns TADA data frame without unnecessary columns
   tar_target(wqp_long, wqp_s3 %>%
-               select(-all_of(wqp_drop_cols(wqp_s3))) %>%
+               drop_na_cols() %>%
                TADA_RetainRequired()),
   
+  #' Prepare for joining with core datasets
+  #' 
+  #' Make data wide.
+  #' Remove non-surface observations.
+  #' Remove most columns
+  #' Combine filtered and unfiltered parameters where they shouldn't be split (ions, mislabeled chl)
+  #' Remove some obviously bad data.
+  #' Fill in some missing values for parameters that can be calculated based on other parameters (like TKN)
+  #' Rename columns.
+  #' Remove rows that only have temperature data.
+  #' 
+  #' @param wqp_long fully cleaned TADA data frame
+  #'
+  #' @returns Wide data formatted to join with core data
   tar_target(wqp_wide, wqp_long %>% 
                filter(!(TADA.DepthCategory.Flag %in% c("Bottom", "Middle"))) %>% #assume surface if not specified
                select(TADA.ComparableDataIdentifier, ActivityStartDate, TADA.ResultMeasureValue, OrganizationIdentifier, MonitoringLocationTypeName,

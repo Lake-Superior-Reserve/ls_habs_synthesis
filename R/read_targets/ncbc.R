@@ -1,5 +1,12 @@
 ncbc_targets <- list(
   
+  # raw data files --------------------------------------------------------------
+  
+  #' Targets for raw source files
+  #' 
+  #' These targets list the paths for all of the NCBC source files.
+  #'
+  #' @return A file path.
   tar_target(cb_stations_file, "ref/CB_SiteCoordinates.csv", format = "file"),
   tar_target(cb_gage_file, "ref/CBGageSites_Coordinates.xlsx", format = "file"),
   
@@ -18,14 +25,39 @@ ncbc_targets <- list(
   tar_target(cbq_ltls_file, "raw_data/ncbc/discharge/ltls.csv", format = "file"),
   tar_target(cbq_nft2_file, "raw_data/ncbc/discharge/nft2.csv", format = "file"),
   
+  
+  # Read files --------------------------------------------------------------------
+  
+  #' Read NCBC station and gage lists
+  #' 
+  #' Reads in files with locations of NCBC stations and gages
+  #' 
+  #' @param cb_<type>_file csv with all station/gage locations
+  #'
+  #' @return Data frame of NCBC stations/gages and coordinates.
   tar_target(cb_stations, read_csv(cb_stations_file) %>% 
                select(site = Site_ID, latitude = Lat, longitude = Long)),
   tar_target(cb_gages, read_xlsx(cb_gage_file)),
   
+  #' Read NCBC chemistry files
+  #' 
+  #' Reads in files with nutrients/water quality/tp/tss for CB and tributaries
+  #' 
+  #' @param cb<type>_file raw data file
+  #'
+  #' @return Data frame with nutrient/water quality/tp/tss data
   tar_target(cbnut, read_xlsx(cbnut_file)),
   tar_target(cbtrib_tp, read_csv(cbtrib_tp_file)),
   tar_target(cbtrib_ssc, read_csv(cbtrib_ssc_file)),
   
+  #' Read NCBC discharge files
+  #' 
+  #' Reads in files with discharge data for CB tributaries, correcting column types as needed.
+  #' Files are all in slightly different formats, so need their own read-in specifications.
+  #' 
+  #' @param cbq_<site> raw data files
+  #'
+  #' @return Data frame with discharge data
   tar_target(cbq_pco2, read_xlsx(cbq_pco2_file, skip = 7) %>% 
                mutate(site = "PCO2")),
   tar_target(cbq_tcbs, read_csv(cbq_tcbs_file, skip = 2) %>% 
@@ -59,7 +91,16 @@ ncbc_targets <- list(
                mutate(site = "NFT2")),
   
   
-  #ncbc cleaning
+  # Clean files ----------------------------------------------------------------
+  
+  #' Clean nutrient files
+  #' 
+  #' Cleans raw nutrient and water quality data, converting units, removing obviously incorrect data, adding locations
+  #' 
+  #' @param cbnut data frame of nutrient/water quality data.
+  #' @param cb_stations data frame of sampling station locations.
+  #'
+  #' @return Data frame of cleaned nutrient/water quality data.
   tar_target(cbnut_clean, cbnut %>% 
                select(date = Date, site = Station, tp = TP_mgL, chl = Chla_ugL, pp = PP_ugL, po4 = SRP_mgL, tdp = `TDP_ug/L`,
                       poc = POC_ugL, pon = PON_ugL, no3 = `NO3_mg/L`, nh3 = `NH3_ug/L`, tss = `TSS _mgL`, temp = mn_temp,
@@ -77,6 +118,13 @@ ncbc_targets <- list(
                left_join(cb_stations) %>% 
                mutate(source = "NCBC", type = "Lake")),
   
+  #' Clean tributary chemistry files
+  #' 
+  #' Cleans raw tributary chemistry data, formatting dates, handles NDs, renames columns
+  #' 
+  #' @param cbtrib_<type> data frame of tributary chemistry data.
+  #'
+  #' @return Data frame of cleaned tributary chemistry data.
   tar_target(cbtrib_tp_clean, cbtrib_tp %>% 
                mutate(date = str_c(Date, `Time (CDT)`, sep = " "),
                       date = mdy_hms(date, tz = "America/Chicago")) %>% 
@@ -87,6 +135,17 @@ ncbc_targets <- list(
                       tss = if_else(`Suspended Sediment (1.5 um filter) Concentration (mg/L)` == "ND", "0", `Suspended Sediment (1.5 um filter) Concentration (mg/L)`),
                       tss = as.numeric(tss)) %>% 
                select(date, site = `Site ID`, discharge = `Discharge (CFS)`, tss)),
+  
+  
+  # Daily versions of files -------------------------------------------------------
+  
+  #' Make daily version of tributary chemistry data
+  #' 
+  #' Get daily averages of tributary chemistry parameters.
+  #' 
+  #' @param cbtrib_<type>_clean data frame of cleaned tributary chemistry data.
+  #'
+  #' @return Data frame of daily tributary chemistry data.
   tar_target(cbtrib_ssc_daily, cbtrib_ssc_clean %>% 
                mutate(date = date(date)) %>%
                group_by(date, site) %>%
@@ -97,6 +156,15 @@ ncbc_targets <- list(
                group_by(date, site) %>%
                summarise(across(c(discharge, tp), ~mean(.x, na.rm = TRUE))) %>% 
                ungroup()),
+  
+  #' Join together tributary chemistry data
+  #' 
+  #' Combine TP/TSS data with site locations; average discharge data from both files to handle disagreements; 
+  #' add info columns to fit with core data
+  #' 
+  #' @param cbtrib_<type>_clean data frame of cleaned tributary chemistry data.
+  #'
+  #' @return Data frame of all tributary chemistry data.
   tar_target(cbtrib, cbtrib_tp_daily %>% 
                full_join(cbtrib_ssc_daily, join_by(date, site)) %>% 
                mutate(discharge = rowMeans(across(c(discharge.x, discharge.y)), na.rm = TRUE)) %>% 
@@ -106,6 +174,17 @@ ncbc_targets <- list(
                select(date, site, station_nm = Site_Name, discharge, tp, tss, latitude = LAT_WGS84, longitude = LONG_WGS84) %>% 
                mutate(source = "NCBC", huc = "04010301")),
   
+  
+  # Combine discharge-only data --------------------------------------------------------
+  
+  #' Join together tributary discharge data
+  #' 
+  #' Stacks tributary discharges files; split out by format;
+  #' Make daily average if necessary (s3).
+  #' 
+  #' @param cbq_<site> data frame of tributary discharge data.
+  #'
+  #' @return Data frame of daily tributary discharge.
   tar_target(cbq_s1, bind_rows(cbq_pco2, cbq_nfo2, cbq_bcc, cbq_sfcr) %>% 
                select(date = `Timestamp (UTC-05:00)`, site, discharge = Value) %>% 
                mutate(date = force_tz(date, tzone = "America/Chicago"))),
@@ -119,6 +198,14 @@ ncbc_targets <- list(
                summarise(discharge = mean(discharge, na.rm = TRUE)) %>% 
                ungroup()),
   
+  #' Prepare discharge data to join with core
+  #' 
+  #' Joins together tributary discharge data.
+  #' Cleans discharge data for joining with core dataset; remove empty rows, renames columns, add coordinates and info columns
+  #' 
+  #' @param cbq_<group> data frame of tributary discharge data.
+  #'
+  #' @return Data frame of all CB tributary discharge.
   tar_target(cbq_clean, bind_rows(cbq_s1, cbq_s2, cbq_s3) %>% 
                filter(!is.na(discharge)) %>% 
                left_join(cb_gages, by = join_by(site == Site_ID)) %>% 

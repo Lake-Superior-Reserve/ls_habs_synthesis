@@ -345,6 +345,7 @@ dnr_targets <- list(
       summarise(across(all_of(data_cols), ~mean(., na.rm = TRUE))) %>% 
       mutate(across(where(is.numeric), replace_nan))
   }),
+  
   #' Make surface-only hydro data
   #' 
   #' Targets to average surface (<=2 m depth) observations so that there is only one row per date and site.
