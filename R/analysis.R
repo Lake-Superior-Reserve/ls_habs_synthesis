@@ -33,10 +33,19 @@ analysis_targets <- list(
   #' Daily estimates of TP load for major tributaries to Western Lake Superior. 2010-2020.
   #' 
   #' @returns data frame of daily TP loads
-  tar_target(ls_tpload_file, "raw_data/SuperiorLoads.xlsx", format = "file"),
+  tar_target(ls_tpload_file, "raw_data/other/SuperiorLoads.xlsx", format = "file"),
   tar_target(ls_tpload, read_xlsx(ls_tpload_file) %>% 
                mutate(Date = force_tz(Date, tzone = "America/Chicago")) %>% 
                filter(Major_Rivers250 %in% c("Amnicon River", "Bad", "Bois Brule River", "Nemadji River", "StLouis")) %>%  #montreal river at border of mi/wi?)
-               select(river = Major_Rivers250, date = Date, tp_load = Load))
+               select(river = Major_Rivers250, date = Date, tp_load = Load)),
+  
+  
+  #' Reported Blooms
+  #'
+  #' Reported blooms in Lake Superior/SLRE 2012-2023, including location, general size, and dominant cyano species.
+  #' 
+  #' @returns data frame of reported blooms
+  tar_target(ls_bloom_file, "raw_data/other/PublicBloomData.csv", format = "file"),
+  tar_target(ls_bloom, read_csv(ls_bloom_file))
   
 )
