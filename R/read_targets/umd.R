@@ -74,7 +74,16 @@ umd_targets <- list(
                mutate(si = si * .001 * 28.086, doc = doc * .001 * 12.011, poc = poc * .001 * 12.011, poc_filt = poc_filt * .001 * 12.011, #converting units from to umol/L to mg/L by converting to mmol/L then multiplying by molar mass
                       no3 = no3 * .001 * 14.007, nh3 = nh3 * .001 * 14.007, tdn = tdn * .001 * 14.007, pon = pon * .001 * 14.007, pon_filt = pon_filt * .001 * 14.007,
                       po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974,
-                      toc = poc + doc) %>% 
+                      toc = poc + doc,
+                      source = if_else(longitude > -91.7, "NPS", "UMD"),
+                      latitude = if_else(Site == "CB1", 46.59708, latitude), # make coords match NCBC CB stations coords
+                      latitude = if_else(Site == "CB3", 46.62188, latitude),
+                      latitude = if_else(Site == "CB10", 46.71722, latitude),
+                      latitude = if_else(Site == "CB11", 46.74633, latitude),
+                      longitude = if_else(Site == "CB1", -90.91349, longitude),
+                      longitude = if_else(Site == "CB3", -90.90092, longitude),
+                      longitude = if_else(Site == "CB10", -90.84085, longitude),
+                      longitude = if_else(Site == "CB11", -90.81973, longitude)) %>% 
                rename(date = Date, site = Site)),
   tar_target(umd_2123_clean, umd_2123 %>% 
                mutate(Date = ymd(Date, tz = "America/Chicago"),
@@ -82,7 +91,7 @@ umd_targets <- list(
                       PON = if_else(PONFlag == "bdl", 0.0009, PON) # NO3 LOD = 0.002, PON LOD = 0.0018, SRP LOD = 0.0015 per Sandy B 9/17/24
                ) %>% 
                group_by(Date, Site) %>% 
-               summarise(latitude = mean(Latitude), longitude = mean(Longitude), depth = 0, source = "NPS/BRICO", type = first(Type),
+               summarise(latitude = mean(Latitude), longitude = mean(Longitude), depth = 0, source = "NPS", type = first(Type),
                          doc = mean(DOC, na.rm = T), poc = mean(POC, na.rm = T), no3 = mean(NO3, na.rm = T), nh3 = mean(NH3, na.rm = T), 
                          tdn = mean(TDN, na.rm = T), pon = mean(PON, na.rm = T), po4 = mean(SRP, na.rm = T), tdp = mean(TDP, na.rm = T), 
                          pp = mean(PP, na.rm = T), tp = mean(TP, na.rm = T), si = mean(SRSi, na.rm = T), chl = mean(Chl, na.rm = T),  
@@ -90,7 +99,8 @@ umd_targets <- list(
                mutate(si = si * .001 * 28.086, doc = doc * .001 * 12.011, poc = poc * .001 * 12.011,  #converting units from to umol/L to mg/L by converting to mmol/L then multiplying by molar mass
                       no3 = no3 * .001 * 14.007, nh3 = nh3 * .001 * 14.007, tdn = tdn * .001 * 14.007, pon = pon * .001 * 14.007, 
                       po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974,
-                      toc = poc + doc) %>% 
+                      toc = poc + doc,
+                      ) %>% 
                rename(date = Date, site = Site)),
   
   #' Clean 2020 troll files
