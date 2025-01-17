@@ -5,6 +5,7 @@ lsnerr_targets <- list(
   #' QC water quality data
   #' 
   #' Function to drop values based on NERR QC codes (1 and -3). Meant to be used on whole columns.
+  #' Also used to QC meteorological data, as the flags are the same
   #'
   #' @param value parameter numerical value column
   #' @param flag corresponding flag column for value
@@ -44,6 +45,20 @@ lsnerr_targets <- list(
     }
     return(lkswq[1:30])
   }),  
+  
+  #' Combine raw meteorological files
+  #' 
+  #' Function to stack water quality files. There are a bunch and are structured identically, so it didn't make sense to list them all.
+  #'
+  #' @returns Data frame with all raw LSNERR water quality data
+  tar_target(get_lksmet_file, function() {
+    dir <- "raw_data/lsnerr/lksmet"
+    lkswq <- data.frame()
+    for (file in list.files(dir)) {
+      lkswq <- bind_rows(lkswq, read_csv(str_c(dir,file,sep = "/")))
+    }
+    return(lkswq[1:28])
+  }), 
 
   # Raw files --------------------------------------------------------
   
@@ -131,8 +146,38 @@ lsnerr_targets <- list(
   #' @return Data frame of uncleaned water quality data.
   tar_target(lkswq, get_lkswq_file()),
   
+  #' Read LSNERR meteorological files
+  #' 
+  #' Using `get_lksmet_file()`, Reads in raw files of meteorological data, and binds together.
+  #'
+  #' @return Data frame of uncleaned meteorological data.
+  tar_target(lksmet, get_lksmet_file()),
+  
   
   # Clean files ---------------------------------------------------------------------
+  
+  #' Clean LSNERR meteorological files
+  #' 
+  #' Cleans raw meteorological data, removing rows with no data, fixing dates, dropping bad data using `qc_lsnerr_wq()`, correcting a few other data issues
+  #' 
+  #' @param lksmet data frame of LSNERR meteorological data.
+  #'
+  #' @return Data frame of cleaned meteorological data.
+  tar_target(lksmet_clean, lksmet %>%
+               filter(!(is.na(ATemp) & is.na(RH) &is.na(BP) & is.na(WSpd) & is.na(MaxWSpd) & is.na(Wdir) & is.na(TotPAR) & is.na(TotPrcp) & is.na(TotSoRad))) %>%
+               mutate(DatetimeStamp = mdy_hm(DatetimeStamp, tz = "America/Chicago"),
+                      ATemp = qc_lsnerr_wq(ATemp, F_ATemp),
+                      RH = qc_lsnerr_wq(RH, F_RH),
+                      BP = qc_lsnerr_wq(BP, F_BP),
+                      WSpd = qc_lsnerr_wq(WSpd, F_WSpd),
+                      MaxWSpd = qc_lsnerr_wq(MaxWSpd, F_MaxWSpd),
+                      Wdir = qc_lsnerr_wq(Wdir, F_Wdir),
+                      SDWDir = qc_lsnerr_wq(SDWDir, F_SDWDir),
+                      TotPAR = qc_lsnerr_wq(TotPAR, F_TotPAR),
+                      TotPrcp = qc_lsnerr_wq(TotPrcp, F_TotPrcp),
+                      TotSoRad = qc_lsnerr_wq(TotSoRad, F_TotSoRad)) %>%
+               filter(!(is.na(ATemp) & is.na(RH) &is.na(BP) & is.na(WSpd) & is.na(MaxWSpd) & is.na(Wdir) & is.na(TotPAR) & is.na(TotPrcp) & is.na(TotSoRad))) 
+  ),
   
   #' Clean LSNERR water quality files
   #' 
@@ -188,6 +233,28 @@ lsnerr_targets <- list(
   
   
   # Daily versions --------------------------------------------------------
+  
+  #' Make daily version of LSNERR meteorological data
+  #' 
+  #' Get daily averages of meteorological parameters and rename columns.
+  #' 
+  #' @param lksmet_clean data frame of LSNERR meteorological data.
+  #'
+  #' @return Data frame of daily meteorological data.
+  tar_target(lksmet_dv, lksmet_clean %>%
+               mutate(date = date(DatetimeStamp),
+                      site = StationCode,
+                      site = str_sub(site, end = 5)) %>%
+               group_by(date, site) %>%
+               summarise(airtemp = mean(ATemp, na.rm = T),
+                         humidity = mean(RH, na.rm = T),
+                         pressure = mean(BP, na.rm = T),
+                         windspeed = mean(WSpd, na.rm = T),
+                         winddir = mean(Wdir, na.rm = T),
+                         par = sum(TotPAR, na.rm = T),
+                         precip = sum(TotPrcp, na.rm = T),
+                         sorad = sum(TotSoRad, na.rm = T)) %>% 
+               ungroup()),
   
   #' Make daily version of LSNERR water quality data
   #' 
