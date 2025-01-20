@@ -75,7 +75,6 @@ umd_targets <- list(
                       no3 = no3 * .001 * 14.007, nh3 = nh3 * .001 * 14.007, tdn = tdn * .001 * 14.007, pon = pon * .001 * 14.007, pon_filt = pon_filt * .001 * 14.007,
                       po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974,
                       toc = poc + doc,
-                      source = if_else(longitude > -91.7, "NPS", "UMD"),
                       latitude = if_else(Site == "CB1", 46.59708, latitude), # make coords match NCBC CB stations coords
                       latitude = if_else(Site == "CB3", 46.62188, latitude),
                       latitude = if_else(Site == "CB10", 46.71722, latitude),
@@ -83,7 +82,8 @@ umd_targets <- list(
                       longitude = if_else(Site == "CB1", -90.91349, longitude),
                       longitude = if_else(Site == "CB3", -90.90092, longitude),
                       longitude = if_else(Site == "CB10", -90.84085, longitude),
-                      longitude = if_else(Site == "CB11", -90.81973, longitude)) %>% 
+                      longitude = if_else(Site == "CB11", -90.81973, longitude),
+                      source = if_else(str_detect(Site, "CB"), "NCBC", source)) %>% 
                rename(date = Date, site = Site)),
   tar_target(umd_2123_clean, umd_2123 %>% 
                mutate(Date = ymd(Date, tz = "America/Chicago"),
@@ -100,6 +100,7 @@ umd_targets <- list(
                       no3 = no3 * .001 * 14.007, nh3 = nh3 * .001 * 14.007, tdn = tdn * .001 * 14.007, pon = pon * .001 * 14.007, 
                       po4 = po4 * .001 * 30.974, tdp = tdp * .001 * 30.974, pp = pp * .001 * 30.974, tp = tp * .001 * 30.974,
                       toc = poc + doc,
+                      source = if_else(longitude > -91.7, "NPS", "UMD")
                       ) %>% 
                rename(date = Date, site = Site)),
   
