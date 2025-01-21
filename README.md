@@ -1,4 +1,4 @@
-# LS HABS Synthesis Project
+# Lake Superior HABS Data Synthesis
 
 This repository holds code to synthesize and analyze data on the Western arm of Lake Superior and its watershed in order to better understand the increasing frequency of harmful algal blooms. It is setup as an automated pipeline using the [`targets`](https://books.ropensci.org/targets/) R package in order to orchestrate a complex, modular workflow where dependency tracking determines which components need to be built. Currently, this pipeline will need 1-2 hours and an internet connection to build. See the "Running Pipeline" section below for steps.
 
@@ -71,4 +71,11 @@ remotes::install_github("USEPA/EPATADA", ref = "develop", dependencies = TRUE, f
 # build datasets
 targets::tar_make()
 ```
+
+## Using the Data
+
+If you are interested in making use of these data, please [get in touch](srblackburn@wisc.edu)! We would love to chat about potential collaborations and how me can make these data for useful to the community. 
+This dataset is made available under the [Creative Commons CCO1.0 License](https://creativecommons.org/publicdomain/zero/1.0/). A generic citation is provided below:
+
+> Blackburn, S.R, Reinl, K.L., Coffman, E.M., Hudson, M.J., Lafrancois, B.M., 2025. Lake Superior Harmful Algal Bloom Synthesized Dataset.
 
