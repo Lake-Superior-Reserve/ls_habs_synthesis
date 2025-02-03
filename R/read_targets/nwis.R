@@ -39,8 +39,9 @@ nwis_targets <- list(
   #' Years are split out for the "iv" pull to make each pull more reasonably sized. Joined together in the last target of this chunk.
   #'
   #' @return Data frame of all raw NWIS data for relevant sites
-  tar_target(nwis_pull_dv, readNWISdata(service = "dv", siteNumbers = unique(filter(nwis_metadata, data_type_cd == "dv")$site_no), startDate = "2010-01-01", endDate = "2023-12-31", tz = "America/Chicago")),
+  tar_target(nwis_pull_dv, readNWISdata(service = "dv", siteNumbers = unique(filter(nwis_metadata, data_type_cd == "dv")$site_no), startDate = "2010-01-01", endDate = "2024-12-31", tz = "America/Chicago")),
   
+  tar_target(nwis_pull_uv24, readNWISdata(service = "iv", siteNumbers = unique(filter(nwis_metadata, data_type_cd == "uv")$site_no), startDate = "2024-01-01", endDate = "2024-12-31", tz = "America/Chicago")),
   tar_target(nwis_pull_uv23, readNWISdata(service = "iv", siteNumbers = unique(filter(nwis_metadata, data_type_cd == "uv")$site_no), startDate = "2023-01-01", endDate = "2023-12-31", tz = "America/Chicago")),
   tar_target(nwis_pull_uv22, readNWISdata(service = "iv", siteNumbers = unique(filter(nwis_metadata, data_type_cd == "uv")$site_no), startDate = "2022-01-01", endDate = "2022-12-31", tz = "America/Chicago")),
   tar_target(nwis_pull_uv21, readNWISdata(service = "iv", siteNumbers = unique(filter(nwis_metadata, data_type_cd == "uv")$site_no), startDate = "2021-01-01", endDate = "2021-12-31", tz = "America/Chicago")),
@@ -57,7 +58,7 @@ nwis_targets <- list(
   tar_target(nwis_pull_uv10, readNWISdata(service = "iv", siteNumbers = unique(filter(nwis_metadata, data_type_cd == "uv")$site_no), startDate = "2010-01-01", endDate = "2010-12-31", tz = "America/Chicago")),
   
   tar_target(nwis_pull_uv, bind_rows(nwis_pull_uv10, nwis_pull_uv11, nwis_pull_uv12, nwis_pull_uv13, nwis_pull_uv14, nwis_pull_uv15, nwis_pull_uv16, nwis_pull_uv17, nwis_pull_uv18, nwis_pull_uv19,
-                                     nwis_pull_uv20, nwis_pull_uv21, nwis_pull_uv22, nwis_pull_uv23)),
+                                     nwis_pull_uv20, nwis_pull_uv21, nwis_pull_uv22, nwis_pull_uv23, nwis_pull_uv24)),
   
   
   # Clean data --------------------------------------------------------

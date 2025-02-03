@@ -160,8 +160,8 @@ wqp_targets <- list(
   #' Pulls data based on huc8 code. See https://usepa.github.io/EPATADA/reference/TADA_BigDataRetrieval.html for details.
   #'
   #' @returns TADA uncleaned data frames
-  tar_target(wqp_pull_trib, TADA_BigDataRetrieval(huc = c("04010102", "04010201", "04010202", "04010301", "04010302"), startDate = "2010-01-01", endDate = "2023-12-31")),
-  tar_target(wqp_pull_ls, TADA_BigDataRetrieval(huc = "04020300", startDate = "2010-01-01", endDate = "2023-12-31")),
+  tar_target(wqp_pull_trib, TADA_BigDataRetrieval(huc = c("04010102", "04010201", "04010202", "04010301", "04010302"), startDate = "2010-01-01", endDate = "2024-12-31")),
+  tar_target(wqp_pull_ls, TADA_BigDataRetrieval(huc = "04020300", startDate = "2010-01-01", endDate = "2024-12-31")),
   
   
   # clean data -----------------------------------------------
