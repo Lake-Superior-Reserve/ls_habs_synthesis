@@ -64,10 +64,11 @@ lsnerr_targets <- list(
   
   #' Targets for raw source files
   #' 
-  #' These targets list the paths for all of the LSNERR source files.
+  #' These targets list the paths for all of the LSNERR source files. Also includes data from science collaborative monitoring.
   #'
   #' @return A file path.
   tar_target(nerr_stations_file, "ref/nerr_sampling_stations.csv", format = "file"),
+  tar_target(scico_stations_file, "ref/SciCollabLocations.csv", format = "file"),
   
   tar_target(lksnut12_file, "raw_data/lsnerr/lksnut/lksnut2012.csv", format = "file"),
   tar_target(lksnut13_file, "raw_data/lsnerr/lksnut/lksnut2013.csv", format = "file"),
@@ -83,12 +84,15 @@ lsnerr_targets <- list(
   tar_target(lksnut23_file, "raw_data/lsnerr/lksnut/lksnut2023.csv", format = "file"),
   #tar_target(lksnut24_file, "raw_data/lsnerr/lksnut/lksnut2024.csv", format = "file"),
   
+  tar_target(scico_file, "raw_data/lsnerr/scicollabdata021125.csv", format = "file"),
+  
   
   # Read files ------------------------------------------------------------
   
   #' Read LSNERR station list
   #' 
   #' Reads in file of all NERR stations, filters to just LSNERR stations, changes column names, cleans site name
+  #' Reads in cleaned science collaborative locations.
   #' 
   #' @param nerr_stations_file csv with all NERR station locations
   #'
@@ -100,9 +104,13 @@ lsnerr_targets <- list(
                     longitude = 0 - as.numeric(longitude)) %>% 
              filter(!duplicated(site))),
   
+  tar_target(scico_stations, read_csv(scico_stations_file)),
+  
+  
   #' Read LSNERR nutrient files
   #' 
   #' Reads in raw files of nutrient data, fixing column types as needed and bind together.
+  #' Also reads in science collaborative data.
   #' 
   #' @param lksnut<year> csv with LSNERR nutrient data.
   #'
@@ -138,6 +146,8 @@ lsnerr_targets <- list(
   tar_target(lksnut23, read_csv(lksnut23_file)),
   #tar_target(lksnut24, read_csv(lksnut24_file),
   tar_target(lksnut, bind_rows(lksnut12, lksnut13, lksnut14, lksnut15, lksnut16, lksnut17, lksnut18, lksnut19, lksnut20, lksnut21, lksnut22, lksnut23)),
+  
+  tar_target(scico, read_csv(scico_file)),
   
   #' Read LSNERR water quality files
   #' 
@@ -231,6 +241,40 @@ lsnerr_targets <- list(
                       NO3F = abs(NO3F) # make sure we don't have any negative values - this makes them very small values below detection limit, but still not 0, which is unlikely
                )),
   
+  #' Clean Science Collaborative file
+  #' 
+  #' Data is clean, this just changes some column names and adds site locations. 
+  #' Also drops SWMP data prior to 2024 to avoid duplicates
+  #' 
+  #' @param scico data frame of science collaborative data.
+  #'
+  #' @return Data frame of cleaned data.
+  tar_target(scico_clean, scico %>% 
+               left_join(scico_stations, by = join_by(site)) %>% 
+               filter(!is.na(latitude)) %>% 
+               mutate(
+                 date = mdy(date_sampled),
+                 site = case_when(
+                   site == "BA" ~ "lksba",
+                   site == "BL" ~ "lksbl",
+                   site == "OL" ~ "lksol",
+                   site == "PO" ~ "lkspo",
+                   .default = site
+                 ),
+                 source = if_else(site %in% c("lksba", "lksbl", "lksol", "lkspo"), "LSNERR", "SciCollab"),
+                 type = "Estuary",
+                 tp_ppm = tp_ppb / 1000,
+                 op_ppm = op_ppb / 1000,
+                 tn_ppm = tn_ppb / 1000,
+                 nh4n_ppm = nh4n_ppb / 1000,
+                 no2no3n_ppm = no2no3n_ppb / 1000,
+                 sp_cond_u_s_cm = sp_cond_m_s_cm * 1000
+               ) %>% 
+               select(date, site, latitude, longitude, source, type, 
+                      chl = chla, tp = tp_ppm, po4 = op_ppm, tn = tn_ppm, nh3 = nh4n_ppm, no3 = no2no3n_ppm,
+                      doc = doc_ppm, toc = toc_ppm, tss, turb = turbidity_fnu, ph = p_h, temp = temp_c,
+                      do_sat = odo_percent_sat, do = odo_mg_l, cond = sp_cond_m_s_cm) %>% 
+               filter(!(source == "LSNERR" & year(date) != 2024))),
   
   # Daily versions --------------------------------------------------------
   
@@ -316,6 +360,8 @@ lsnerr_targets <- list(
   #' @return Data frame of all LSNERR daily data.
   tar_target(lsnerr, full_join(lkswq_dv, lksnut_dv) %>%
                left_join(nerr_stations) %>%
-               mutate(source = "LSNERR", type = "Estuary"))
+               mutate(source = "LSNERR", type = "Estuary") %>% 
+               bind_rows(scico_clean) %>% 
+               arrange(date, site))
   
 )
