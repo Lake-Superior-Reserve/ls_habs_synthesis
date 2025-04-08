@@ -7,6 +7,7 @@ source("R/read_targets/ncca.R")
 source("R/read_targets/wqp.R")
 source("R/read_targets/nwis.R")
 source("R/read_targets/nbdc.R")
+source("R/read_targets/ncdc.R")
 
 
 read_targets <- list(
@@ -104,6 +105,7 @@ read_targets <- list(
   wqp_targets,
   nwis_targets,
   nbdc_targets,
+  ncdc_targets,
 
 
   # Make full files by type ---------------------------------------------
