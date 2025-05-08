@@ -10,7 +10,7 @@ ncbc_targets <- list(
   tar_target(cb_stations_file, "ref/CB_SiteCoordinates.csv", format = "file"),
   tar_target(cb_gage_file, "ref/CBGageSites_Coordinates.xlsx", format = "file"),
   
-  tar_target(cbnut_file, "raw_data/ncbc/Compiled_Bay_Data_2014-2022.xlsx", format = "file"),
+  tar_target(cbnut_file, "raw_data/ncbc/Compiled_Bay_Data_2014-2024.xlsx", format = "file"),
   tar_target(cbtrib_tp_file, "raw_data/ncbc/TP_Tribs_14-16.csv", format = "file"),
   tar_target(cbtrib_ssc_file, "raw_data/ncbc/SSC_Tribs_14-16.csv", format = "file"),
   
