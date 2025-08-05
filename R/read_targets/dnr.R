@@ -271,7 +271,8 @@ dnr_targets <- list(
       mutate(`Depth (m)` = as.numeric(`Depth (m)`),
              Date = mdy(Date, tz = "America/Chicago"),
              `pH (SU)` = if_else(`pH (SU)` < 6.5, NA, `pH (SU)`), # drop suspicious pH values
-             `Temp (C)` = if_else(year(Date) == 2023, NA, `Temp (C)`), # 2023 temp values are all suspiciously high, dropping
+             `DO %` = if_else(year(Date) == 2023, NA, `DO %`), # 2023 DO values are all suspiciously high, dropping
+             `DO (mg/L)` = if_else(year(Date) == 2023, NA, `DO (mg/L)`),
              Site = as.character(Site)) %>% 
       left_join(dnr_sites, by = join_by(Site == SiteID)) %>% 
       select(date = Date, station = StationID, site = Site, depth = `Depth (m)`, temp = `Temp (C)`, do_sat = `DO %`, do = `DO (mg/L)`, cond = `Specific Conductivity (uS/cm)`,
