@@ -1007,7 +1007,18 @@ dnr_targets <- list(
         values_fn = ~ mean(.x, na.rm = TRUE)
       ) %>%
       arrange(StartDateTime, StationID) %>%
-      rename(date = StartDateTime, station = StationID)
+      rename(date = StartDateTime, station = StationID) %>%
+      # make dates align with chem data
+      mutate(
+        date = case_when(
+          station == "10052510" & date == ymd("2023-08-01") ~ ymd("2023-07-31"),
+          station == "101" & date == ymd("2023-07-31") ~ ymd("2023-08-01"),
+          station %in%
+            c("101", "103", "10040814", "10052587") &
+            date == ymd("2024-10-04") ~ ymd("2024-09-30"),
+          .default = date
+        )
+      )
   ),
 
   #' Add other parameters to bacteria counts
