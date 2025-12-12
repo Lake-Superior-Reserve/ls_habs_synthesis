@@ -171,6 +171,12 @@ dnr_targets <- list(
   ),
 
   tar_target(
+    dnr_bac_23_file,
+    "raw_data/wdnr/AlgalID2023.csv",
+    format = "file"
+  ),
+
+  tar_target(
     dnr_bac_24_file,
     "raw_data/wdnr/2024AlgalData_full.xlsx",
     format = "file"
@@ -204,6 +210,7 @@ dnr_targets <- list(
   tar_target(dnr_hydro_25_cb, read_xlsx(dnr_hydro_25_cb_file)),
   tar_target(dnr_hydro_25, read_csv(dnr_hydro_25_file)),
 
+  tar_target(dnr_bac_23_raw, read_csv(dnr_bac_23_file)),
   tar_target(dnr_bac_24_raw, read_xlsx(dnr_bac_24_file)),
 
   # Create join tables for station, site, and block number --------------------------------
@@ -911,52 +918,34 @@ dnr_targets <- list(
       )
   ),
 
-  #' Extract bacteria counts from 2023 DNR chemistry data
+  #' Process 2023 bacteria counts
   #'
-  #' Keeps only bacteria counts from 2023 data file, formats date and parameter name, fixes some site names.
+  #' Formats date and parameter name.
   #'
-  #' @param dnr_swims_23 Uncleaned 2023 chemistry data
+  #' @param dnr_bac_23_raw Uncleaned 2023 bacteria data
   #'
   #' @return Data frame of bacteria counts for 2023
   tar_target(
     dnr_bac_23,
-    dnr_swims_23 %>%
-      filter(Units == "cells/mL") %>%
+    dnr_bac_23_raw %>%
+      # drop empty rows
+      filter(!is.na(Site)) %>%
       mutate(
-        `Collection Start Date/Time` = str_split_i(
-          `Collection Start Date/Time`,
-          " ",
-          1
-        ),
-        `Collection Start Date/Time` = ymd(
-          `Collection Start Date/Time`,
-          tz = "America/Chicago"
-        ),
-        `Sample Location` = if_else(
-          str_detect(`Sample Location`, "POPLAR"),
-          str_c(`Sample Location`, " (STATION 101)"),
-          `Sample Location`
-        ),
-        `Sample Location` = if_else(
-          str_detect(`Sample Location`, "QUARRY"),
-          str_c(`Sample Location`, " (BLOOM_2023-09-05)"),
-          `Sample Location`
-        ),
-        `Sample Location` = str_split_i(`Sample Location`, "\\(", 2),
-        `Sample Location` = str_sub(`Sample Location`, 1, -2),
-        `Sample Location` = str_replace(`Sample Location`, "STATION ", ""),
+        StartDateTime = date(mdy_hm(`Collection Start Date/Time`)),
         `DNR Parameter Description` = str_split_i(
           `DNR Parameter Description`,
           " ",
           1
         ),
-        `DNR Parameter Description` = str_to_lower(`DNR Parameter Description`)
+        `DNR Parameter Description` = str_to_lower(`DNR Parameter Description`),
+        Site = as.character(Site)
       ) %>%
+      left_join(dnr_sites, by = join_by(Site == SiteID)) %>%
       select(
-        StartDateTime = `Collection Start Date/Time`,
-        StationID = `Sample Location`,
+        StartDateTime,
+        StationID,
         `DNR Parameter Description`,
-        `Numeric Value`
+        `Numeric Value` = Value
       )
   ),
 
