@@ -884,7 +884,7 @@ dnr_targets <- list(
   tar_target(
     dnr_bac_22,
     dnr_swims_22 %>%
-      filter(Units == "NU/mL") %>%
+      filter(Units == "cells/mL") %>%
       mutate(
         `Collection Start Date/Time` = str_split_i(
           `Collection Start Date/Time`,
@@ -921,7 +921,7 @@ dnr_targets <- list(
   tar_target(
     dnr_bac_23,
     dnr_swims_23 %>%
-      filter(Units == "NU/mL") %>%
+      filter(Units == "cells/mL") %>%
       mutate(
         `Collection Start Date/Time` = str_split_i(
           `Collection Start Date/Time`,
