@@ -237,6 +237,7 @@ dnr_targets <- list(
   #'
   #' Table of lat/long coordinates for each station. Extracted from 2019 file to join with other years.
   #' Also add additional coordinates provided by email from Ellen C 9/9/24
+  #' Create table of stations with figure-ready names
   #'
   #' @param dnr_swims_19 R object of (uncleaned) data from 2019
   #'
@@ -290,6 +291,40 @@ dnr_targets <- list(
         StationName = str_replace(StationName, fixed("R."), "R")
       ) %>%
       select(StationID, StationName, Latitude, Longitude)
+  ),
+  tar_target(
+    dnr_station_names,
+    dnr_stations_24 %>%
+      mutate(
+        name = c(
+          "SCHAFFER BEACH",
+          "AMNICON MOUTH",
+          "POPLAR MOUTH",
+          "BARDON CREEK",
+          "PEARSON CREEK",
+          "BRULE MOUTH",
+          "DOUGLAS CO LINE",
+          "IRON MOUTH",
+          "FLAG MOUTH",
+          "BLOCK 11",
+          "CRANBERRY MOUTH",
+          "BARK BAY",
+          "BARK BAY",
+          "SISKIWIT BAY",
+          "MAWIKWE BAY",
+          "LITTLE SAND BAY",
+          "RED CLIFF BAY",
+          "CHEQUAMEGON BAY",
+          "CHEQUAMEGON BAY",
+          "BAD MOUTH"
+        )
+      ) %>%
+      select(
+        station = StationID,
+        name,
+        latitude = Latitude,
+        longitude = Longitude
+      )
   ),
 
   #' Station/site join table
@@ -1028,5 +1063,26 @@ dnr_targets <- list(
         latitude = StationLatitude,
         longitude = StationLongitude
       )
+  ),
+
+  #' Create export ready table of DNR bacteria counts
+  #'
+  #' Replaces NAs with 0, Adds station names,
+  #' drops sites with only 1 observation
+  #'
+  #' @param dnr_bac data frame of dnr bacteria counts
+  #'
+  #' @return Data frame of bacteria counts.
+  tar_target(
+    dnr_bac_out,
+    dnr_bac %>%
+      mutate(
+        across(where(is.numeric), ~ if_else(is.na(.), 0, .)),
+        date = as.character(date)
+      ) %>%
+      left_join(dnr_station_names, by = join_by(station)) %>%
+      relocate(date, station, name, latitude, longitude) %>%
+      filter(!is.na(station)) %>%
+      filter(!(name %in% c("BLOCK 11", "CRANBERRY MOUTH")))
   )
 )
