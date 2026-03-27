@@ -4,8 +4,7 @@ read_packages <- c("tidyverse", "readxl", "sf", "EPATADA", "dataRetrieval") #EPA
 
 tar_option_set(packages = c(read_packages))
 
-source("R/read.R")
-source("R/analysis.R")
+tar_source()
 
 list(
   read_targets,

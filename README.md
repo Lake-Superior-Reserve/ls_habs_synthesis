@@ -6,7 +6,7 @@ This repository holds code to synthesize and analyze data on the Western arm of 
 
 -   `/raw_data` contains data files provided from partner organizations that form the foundation of the data sets assembled in this repo. It's organized into folders according to the providing organization: Lake Superior National Estuarine Research Reserve (LSNERR), Northland College Mary Griggs Burke Center for Freshwater Innovation (NCBC), EPA National Coastal Condition Assessment (NCCA, not a partner), National Park Service (NPS), University of Minnesota Duluth Large Lakes Observatory (UMD), and Wisconsin Department of Natural Resources (WDNR).
 -   `/ref` contains reference files with supporting information, such as site coordinates, used to assemble the data sets.
--   `/R` contains the R scripts used to build and analyse the data sets. `read.R` processes the files in `/raw_data` and data pulled from the EPA Water Quality Portal (WQP) and the USGS National Water Information System (NWIS) to create the core data sets. Specific reading and cleaning steps for each raw file can be found in the relevant provider script in `/R/read_targets`. `analysis.R` creates a few additional objects useful for analysis, like a Lake Superior Polygon.
+-   `/R` contains the R scripts used to build and analyse the data sets. `read.R` processes the files in `/raw_data` and data pulled from the EPA Water Quality Portal (WQP), the USGS National Water Information System (NWIS), and the National Buoy Data Center (NBDC) to create the core data sets. Specific reading and cleaning steps for each raw file can be found in the relevant provider script in `/R/read_targets`. `analysis.R` creates a few additional objects useful for analysis, like a Lake Superior GIS Polygon and the [Lake Superior Bloom Dataset](https://doi.org/10.6073/pasta/ed4740d1e1284db90df551d7aef865de).
 -   `/out` contains csv versions of the core data sets.
 
 ## Core Data Sets
@@ -16,7 +16,7 @@ This repository holds code to synthesize and analyze data on the Western arm of 
 -   `tributary_core.csv` has observations from rivers and streams in the Western Lake Superior watershed (HUC8 codes "04010102", "04010201", "04010202", "04010301", and "04010302").
 -   `trib_q_core.csv` has observations of discharge only in the Western Lake Superior watershed (see above) and is split out to keep the main tributary file size down.
 
-Currently, the core data sets have observations from 1/1/2010 - 12/31/2023. All observations are taken in surface waters (\< 2m depth) and may be the average of multiple measurements taken at the same site on the same day. Core data sets may contain the following columns:
+Currently, the core data sets have observations from 1/1/2010 - 12/31/2025. All observations are taken in surface waters (\< 2m depth) and may be the average of multiple measurements taken at the same site on the same day. Core data sets may contain the following columns:
 
 -   `date` - date in the America/Chicago timezone
 -   `latitude` - latitude, decimal degrees, WGS84
@@ -59,12 +59,12 @@ Currently, the core data sets have observations from 1/1/2010 - 12/31/2023. All 
 
 ## Running Pipeline
 
-Just run the following snippet (requires an internet connection and will take 1-2 hours to complete):
+Just run the following snippet (requires an internet connection and will take 2-3 hours to complete):
 
 ``` r
 # install required packages
 install.packages("targets", "tidyverse", "readxl", "sf", "dataRetrieval", "remotes")
-remotes::install_github("USEPA/EPATADA", ref = "develop", dependencies = TRUE, force = TRUE)
+remotes::install_github("USEPA/EPATADA", ref = "v1.0.5-beta", dependencies = TRUE, force = TRUE)
 
 # build datasets
 targets::tar_make()
