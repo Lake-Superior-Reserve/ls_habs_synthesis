@@ -28,25 +28,6 @@ read_targets <- list(
     return(filepath)
   }),
 
-  #' Add stoichiometric ratios to full files
-  #'
-  #' Calculates 6 stoichiometric ratios and adds to passed in data frame. TN:TP, TOC:TN, TOC:TP, PON:PP, POC:PON, POC:PP.
-  #'
-  #' @param df Data frame with columns tn, tp, toc, pon, pp, poc
-  #'
-  #' @returns Data frame with 6 stoichiometric ratio columns added
-  tar_target(add_ratios, function(df) {
-    df %>%
-      mutate(
-        npr = tn / tp,
-        cnr = toc / tn,
-        cpr = toc / tp,
-        pnpr = pon / pp,
-        pcnr = poc / pon,
-        pcpr = poc / pp
-      )
-  }),
-
   #' Remove duplicate rows by averaging values
   #'
   #' This function removes duplicates samples (same date at exact same latitude and longitude) by averaging rows.
@@ -96,12 +77,6 @@ read_targets <- list(
       "tdp",
       "pp",
       "po4",
-      "npr",
-      "cnr",
-      "cpr",
-      "pnpr",
-      "pcnr",
-      "pcpr",
       "si",
       "cl"
     )
@@ -131,7 +106,7 @@ read_targets <- list(
   #' Assemble core datasets
   #'
   #' These 4 targets (for Western Lake Superior, the St Louis River Estuary, tributaries, and tributary discharge only)
-  #' combine relevant rows from cleaned versions of source data, add stoichiometric ratios, remove duplicates, and drop unwanted parameters.
+  #' combine relevant rows from cleaned versions of source data, remove duplicates, and drop unwanted parameters.
   #'
   #' @params Cleaned versions of source data
   #'
@@ -144,7 +119,6 @@ read_targets <- list(
       bind_rows(cbnut_clean) %>%
       bind_rows(filter(ncca, type == "Great Lake")) %>%
       bind_rows(filter(wqp_wide, type == "GREAT LAKE")) %>%
-      add_ratios() %>%
       average_duplicates("lake") %>%
       arrange(date)
   ),
@@ -155,7 +129,6 @@ read_targets <- list(
       bind_rows(filter(umd, type == "Estuary")) %>%
       bind_rows(filter(ncca, type == "Estuary")) %>%
       bind_rows(filter(wqp_wide, type == "ESTUARY")) %>%
-      add_ratios() %>%
       average_duplicates("est") %>%
       arrange(date)
   ),
@@ -169,7 +142,6 @@ read_targets <- list(
         !if_all(c(cond, do, ph, turb, tss, tkn, no3, tp), is.na)
       )) %>% # only add rows with more than just discharge
       bind_rows(filter(wqp_wide, type == "RIVER/STREAM")) %>%
-      add_ratios() %>%
       average_duplicates("trib") %>%
       arrange(date)
   ),

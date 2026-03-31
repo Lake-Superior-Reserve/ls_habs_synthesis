@@ -48,12 +48,6 @@ Currently, the core data sets have observations from 1/1/2010 - 12/31/2025. All 
 -   `tdp` - total dissolved phosphorus, mg/L P
 -   `pp` - particulate phosphorus, mg/L P
 -   `po4` - soluble reactive phosphorus/orthophosphate, mg/L
--   `npr` - total nitrogen / total phosphorus ratio
--   `cnr` - total organic carbon / total nitrogen ratio
--   `cpr` - total organic carbon / total phosphorus ratio
--   `pnpr` - particulate organic nitrogen / particulate phosphorus ratio
--   `pcnr` - particulate organic carbon / particulate organic nitrogen ratio
--   `pcpr` - particulate organic carbon / particulate phosphorus ratio
 -   `si` - silica, mg/L Si
 -   `cl` - chloride, mg/L Cl
 
