@@ -14,7 +14,7 @@ This repository holds code to synthesize and analyze data on the Western arm of 
 -   `lake_core.csv` has observations from Lake Superior West of 90° and South of 47.3°.
 -   `estuary_core.csv` has observations from the St Louis River Estuary, defined as the St Louis River downstream of Thomson dam and including Superior Bay.
 -   `tributary_core.csv` has observations from rivers and streams in the Western Lake Superior watershed (HUC8 codes "04010102", "04010201", "04010202", "04010301", and "04010302").
--   `trib_q_core.csv` has observations of discharge only in the Western Lake Superior watershed (see above) and is split out to keep the main tributary file size down.
+
 
 Currently, the core data sets have observations from 1/1/2010 - 12/31/2025. All observations are taken in surface waters (\< 2m depth) and may be the average of multiple measurements taken at the same site on the same day. Core data sets may contain the following columns:
 

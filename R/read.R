@@ -105,7 +105,7 @@ read_targets <- list(
 
   #' Assemble core datasets
   #'
-  #' These 4 targets (for Western Lake Superior, the St Louis River Estuary, tributaries, and tributary discharge only)
+  #' These 4 targets (for Western Lake Superior, the St Louis River Estuary, tributaries)
   #' combine relevant rows from cleaned versions of source data, remove duplicates, and drop unwanted parameters.
   #'
   #' @params Cleaned versions of source data
@@ -157,7 +157,7 @@ read_targets <- list(
 
   #' Save core data to csv for distribution
   #'
-  #' These 4 targets (for Western Lake Superior, the St Louis River Estuary, tributaries, and tributary discharge only)
+  #' These 4 targets (for Western Lake Superior, the St Louis River Estuary, tributaries)
   #' write out each R object to a CSV file in the `/out` directory.
   #'
   #' @params Core data objects
@@ -169,6 +169,5 @@ read_targets <- list(
     trib_file,
     write_file(trib_full, "tributary_core"),
     format = "file"
-  ),
-  tar_target(trib_q_file, write_file(trib_q, "trib_q_core"), format = "file")
+  )
 )

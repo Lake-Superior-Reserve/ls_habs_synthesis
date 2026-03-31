@@ -17,6 +17,20 @@ analysis_targets <- list(
     )
   ),
 
+  #' Full record of Tributary Discharge
+  #'
+  #' The core tributary output drops files with just discharge data;
+  #' This has all discharge data available, summarized to daily means if necessary.
+  #'
+  #' @returns data frame of tributary discharge
+  tar_target(
+    trib_q,
+    nwis %>%
+      bind_rows(cbq_clean) %>%
+      select(date, site, latitude, longitude, huc, source, discharge) %>%
+      arrange(date)
+  ),
+
   #' SF objects of core data
   #'
   #' removes `latitude` and `longitude` columns and replace with `geometry`
