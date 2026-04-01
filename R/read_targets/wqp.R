@@ -923,6 +923,12 @@ wqp_targets <- list(
             `TOTAL PHOSPHORUS, MIXED FORMS_FILTERED_AS P_MG/L`,
           `TOTAL PHOSPHORUS, MIXED FORMS_UNFILTERED_AS P_MG/L`,
           `TOTAL PHOSPHORUS, MIXED FORMS_FILTERED_AS P_MG/L`
+        ),
+        HUCEightDigitCode = str_pad(
+          HUCEightDigitCode,
+          8,
+          side = "left",
+          pad = "0"
         )
       ) %>%
       select(

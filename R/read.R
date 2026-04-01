@@ -145,13 +145,6 @@ read_targets <- list(
       average_duplicates("trib") %>%
       arrange(date)
   ),
-  tar_target(
-    trib_q,
-    nwis %>%
-      bind_rows(cbq_clean) %>%
-      select(date, site, latitude, longitude, huc, source, discharge) %>%
-      arrange(date)
-  ),
 
   # Write CSV files ---------------------------------------------------------------
 
