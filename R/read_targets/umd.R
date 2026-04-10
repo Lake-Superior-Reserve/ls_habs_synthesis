@@ -220,7 +220,7 @@ umd_targets <- list(
   #' Cleans raw 2023 troll (water quality) data, converting units, formatting dates, dropping bad data, and renaming columns.
   #' Also splits data innto two parts: depth profiles and surface transects
   #'
-  #' @param umd20_troll data frame of troll data.
+  #' @param umd23_troll data frame of troll data.
   #'
   #' @return Data frame of cleaned troll data.
   tar_target(
