@@ -67,7 +67,4 @@ targets::tar_make()
 ## Using the Data
 
 If you are interested in making use of these data, please [get in touch](mailto:srblackburn@wisc.edu)! We would love to chat about potential collaborations and how me can make these data for useful to the community. 
-This dataset is made available under the [Creative Commons CCO1.0 License](https://creativecommons.org/publicdomain/zero/1.0/). A generic citation is provided below:
-
-> Blackburn, S.R, Reinl, K.L., Coffman, E.M., Hudson, M.J., Lafrancois, B.M., 2025. Lake Superior Harmful Algal Bloom Synthesized Dataset.
-
+This dataset and code are made available under the [Creative Commons CCO1.0 License](https://creativecommons.org/publicdomain/zero/1.0/). The core datasets are also hosted on the [Environmental Data Repository](https://portal.edirepository.org/nis/mapbrowse?scope=edi&identifier=2327). Please download the data there if possible.
