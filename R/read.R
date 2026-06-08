@@ -94,6 +94,7 @@ read_targets <- list(
   dnr_targets,
   umd_targets,
   nps_targets,
+  uwm_targets,
   ncbc_targets,
   lsnerr_targets,
   ncca_targets,
@@ -118,6 +119,7 @@ read_targets <- list(
       bind_rows(filter(nps, type == "Lake")) %>%
       bind_rows(cbnut_clean) %>%
       bind_rows(filter(ncca, type == "Great Lake")) %>%
+      bind_rows(uwm_daily) %>%
       bind_rows(filter(wqp_wide, type == "GREAT LAKE")) %>%
       average_duplicates("lake") %>%
       arrange(date)
