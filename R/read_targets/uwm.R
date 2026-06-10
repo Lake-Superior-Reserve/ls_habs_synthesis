@@ -112,7 +112,8 @@ uwm_targets <- list(
         do = exdomgl,
         cond = excond,
         turb = exturb,
-        chl_exo = exchl
+        chl_exo = exchl,
+        phy_exo = exphy
       )
   ),
   tar_target(
