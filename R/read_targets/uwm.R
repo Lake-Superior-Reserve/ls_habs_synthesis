@@ -145,7 +145,8 @@ uwm_targets <- list(
         do_sat = exodosat,
         do = exodomgl,
         cond,
-        turb
+        turb,
+        phy_exo = exophy
       )
   ),
 
