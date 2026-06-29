@@ -182,6 +182,12 @@ dnr_targets <- list(
     format = "file"
   ),
 
+  tar_target(
+    dnr_bac_25_file,
+    "raw_data/wdnr/2025 Algal.xlsx",
+    format = "file"
+  ),
+
   tar_target(dnr_sites_file, "ref/DNRStationLocations.xlsx", format = "file"),
   tar_target(dnr_nc_sites_file, "ref/NC_DNR_sites.csv", format = "file"),
 
@@ -212,6 +218,7 @@ dnr_targets <- list(
 
   tar_target(dnr_bac_23_raw, read_csv(dnr_bac_23_file)),
   tar_target(dnr_bac_24_raw, read_xlsx(dnr_bac_24_file)),
+  tar_target(dnr_bac_25_raw, read_xlsx(dnr_bac_25_file)),
 
   # Create join tables for station, site, and block number --------------------------------
 
@@ -779,7 +786,7 @@ dnr_targets <- list(
   #'
   #' @return Data frame of cleaned WDNR surface hydro data
   tar_target(make_dnr_surf, function(df) {
-    data_cols = c(
+    data_cols <- c(
       "temp",
       "do_sat",
       "do",
@@ -988,7 +995,7 @@ dnr_targets <- list(
   #'
   #' Matches formatting of 2024 data to that from 2022-23
   #'
-  #' @param dnr_bac_24_raw Uncleaned 2023 chemistry data
+  #' @param dnr_bac_24_raw Uncleaned 2024 chemistry data
   #'
   #' @return Data frame of bacteria counts for 2024
   tar_target(
@@ -1014,16 +1021,49 @@ dnr_targets <- list(
       )
   ),
 
+  #' Process 2025 bacteria counts
+  #'
+  #' Matches formatting of 2025 data to that from 2022-23, fixes a missing station ID
+  #'
+  #' @param dnr_bac_25_raw Uncleaned 2025 chemistry data
+  #'
+  #' @return Data frame of bacteria counts for 2025
+  tar_target(
+    dnr_bac_25,
+    dnr_bac_25_raw %>%
+      filter(!is.na(`Collection Start Date/Time`)) %>%
+      mutate(
+        StartDateTime = date(`Collection Start Date/Time`),
+        `DNR Parameter Description` = str_split_i(
+          `DNR Parameter Description`,
+          " ",
+          1
+        ),
+        `DNR Parameter Description` = str_to_lower(`DNR Parameter Description`),
+        StationID = if_else(
+          `Field #` == "LSNS-8-1", # missing station ID
+          "10040814",
+          as.character(`Id #`)
+        )
+      ) %>%
+      select(
+        StartDateTime,
+        StationID,
+        `DNR Parameter Description`,
+        `Numeric Value`
+      )
+  ),
+
   #' Combine bacteria counts
   #'
   #' Join bacteria count data frames, make wide, and fix some column names
   #'
-  #' @param dnr_bac_22/23/24 Bacteria counts from 2022, 2023, 2024 WDNR sampling
+  #' @param dnr_bac_22/23/24/25 Bacteria counts from 2022, 2023, 2024, 2025 WDNR sampling
   #'
   #' @return Wide data frame of bacteria counts
   tar_target(
     dnr_bac,
-    bind_rows(dnr_bac_22, dnr_bac_23, dnr_bac_24) %>%
+    bind_rows(dnr_bac_22, dnr_bac_23, dnr_bac_24, dnr_bac_25) %>%
       arrange(`DNR Parameter Description`) %>%
       pivot_wider(
         names_from = `DNR Parameter Description`,
